@@ -797,10 +797,9 @@ export default function App(){
             <div style={{width:26,height:26,borderRadius:'50%',background:`radial-gradient(circle at 35% 35%,${C.red2},${C.redDim})`,boxShadow:`0 0 10px rgba(192,57,43,.4)`,flexShrink:0}}/>
             <span style={{fontFamily:"'Cinzel',serif",fontSize:16,fontWeight:600,color:C.red2,letterSpacing:'.06em'}}>{TITLES[view]||view.charAt(0).toUpperCase()+view.slice(1)}</span>
           </div>
-          {isDM&&(
+          {isDM&&view!=='npc'&&(
             <button onClick={()=>openModal(
               view==='sessioni'?'sessions':
-              view==='npc'?'npcs':
               view==='fazioni'?'factions':
               view==='mondo'?'locations':
               view==='cronologia'?'timeline':
