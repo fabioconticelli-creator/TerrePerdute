@@ -731,10 +731,10 @@ export default function App(){
   )
 
   const navItems=[
-    {v:'sessioni',icon:'📜',l:'Sessioni'},{v:'npc',icon:'👤',l:'NPC'},
-    {v:'fazioni',icon:'⚔️',l:'Fazioni'},{v:'mondo',icon:'🌍',l:'Fogli del Mondo'},
-    {v:'cronologia',icon:'⏳',l:'Cronologia'},{v:'arcano',icon:'✨',l:'Compendio Arcano'},
-    {v:'party',icon:'🛡️',l:'Party'},
+    {v:'npc',icon:'👤',l:'NPC'},
+    {v:'mappa',icon:'🗺️',l:'Mappa'},
+    {v:'fazioni',icon:'⚔️',l:'Fazioni'},
+    {v:'cronologia',icon:'⏳',l:'Cronologia'},
   ]
 
   const playerColors={'minerva':'#c084fc','talia':'#fb923c'}
@@ -774,9 +774,9 @@ export default function App(){
         <div style={{height:1,background:C.border,margin:'6px 18px'}}/>
         <div style={{padding:'14px 0 6px'}}>
           <div style={{fontSize:10,fontWeight:600,letterSpacing:'.18em',textTransform:'uppercase',color:C.textMuted,padding:'0 18px 6px'}}>La Compagnia</div>
-          {characters.map(p=>(
-            <div key={p.id} onClick={()=>nav(p.name.toLowerCase())} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 18px',cursor:'pointer',fontSize:13,color:view===p.name.toLowerCase()?C.red2:C.textDim,background:view===p.name.toLowerCase()?'rgba(192,57,43,.1)':'transparent',borderLeft:`2px solid ${view===p.name.toLowerCase()?C.red:'transparent'}`}}>
-              <span style={{width:8,height:8,borderRadius:'50%',background:p.color||'#c084fc',flexShrink:0,display:'inline-block'}}/>
+          {[{name:'Minerva',color:'#c084fc'},{name:'Talia',color:'#fb923c'}].map(p=>(
+            <div key={p.name} onClick={()=>nav(p.name.toLowerCase())} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 18px',cursor:'pointer',fontSize:13,color:view===p.name.toLowerCase()?C.red2:C.textDim,background:view===p.name.toLowerCase()?'rgba(192,57,43,.1)':'transparent',borderLeft:`2px solid ${view===p.name.toLowerCase()?C.red:'transparent'}`}}>
+              <span style={{width:8,height:8,borderRadius:'50%',background:p.color,flexShrink:0,display:'inline-block'}}/>
               {p.name}
             </div>
           ))}
