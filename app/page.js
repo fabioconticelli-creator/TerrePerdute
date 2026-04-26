@@ -931,7 +931,7 @@ function NPCCard({ npc, onSelect }){
       onMouseEnter={e=>e.currentTarget.style.borderColor=C.border2}
       onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
       <div style={{width:48,height:48,borderRadius:'50%',border:`2px solid ${ac}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,background:C.bg3,flexShrink:0,overflow:'hidden'}}>
-        {img?<img src={img} alt={npc.name} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:
+        {img?<img src={img} alt={npc.name} style={{width:'100%',height:'100%',objectFit:'contain',background:C.bg2}}/>:
           <span style={{fontFamily:"'Cinzel',serif",fontWeight:700,color:ac}}>{npc.name[0]}</span>}
       </div>
       <div style={{flex:1,minWidth:0}}>
@@ -1032,7 +1032,7 @@ function NPCSection({ isDM }){
               </div>
               <div style={{textAlign:'center',paddingBottom:14,color:C.redDim,fontSize:12}}>✦</div>
               {img&&<div style={{padding:'0 20px 16px'}}>
-                <img src={img} alt={selected.name} style={{width:'100%',borderRadius:12,border:`1px solid ${C.border2}`,maxHeight:340,objectFit:'cover',display:'block'}}/>
+                <img src={img} alt={selected.name} style={{width:'100%',height:'auto',borderRadius:12,border:`1px solid ${C.border2}`,display:'block',objectFit:'contain'}}/>
               </div>}
               <div style={{padding:'0 20px 32px'}}>
                 <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
