@@ -797,7 +797,8 @@ function MapSection({isDM}){
     setPins(pins.filter(p=>p.id!==id)); setSelected(null)
   }
 
-  const pinColor=s=>({'visitato':'#2ecc71','noto':'#3498db','pericoloso':'#e74c3c'}[s]||C.textDim)
+  const pinColor=s=>({'visitato':'#2ecc71','noto':'#3498db','sconosciuto':'#8a7fa0','pericoloso':'#e74c3c'}[s]||C.textDim)
+  const LEGENDA=[['visitato','#2ecc71'],['noto','#3498db'],['sconosciuto','#8a7fa0'],['pericoloso','#e74c3c']]
 
   if(loading) return <div style={{textAlign:'center',padding:'60px 20px',color:C.textMuted}}>Caricamento...</div>
 
@@ -832,6 +833,16 @@ function MapSection({isDM}){
           {isDM&&<button onClick={()=>fileRef.current.click()} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'8px 18px',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>⬆ Carica mappa</button>}
         </div>
       }
+    </div>
+
+    {/* Legenda */}
+    <div style={{display:'flex',gap:16,marginTop:10,flexWrap:'wrap'}}>
+      {LEGENDA.map(([label,color])=>(
+        <div key={label} style={{display:'flex',alignItems:'center',gap:5}}>
+          <div style={{width:10,height:10,borderRadius:'50%',background:color,boxShadow:`0 0 5px ${color}`}}/>
+          <span style={{fontSize:12,color:C.textDim}}>{label}</span>
+        </div>
+      ))}
     </div>
 
     {/* Pin detail */}
