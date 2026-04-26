@@ -527,6 +527,21 @@ function PlayerSheet({playerName,playerColor,isOwner}){
 
     {/* INVENTARIO */}
     {tab==='inventario'&&<div>
+      {/* Monete */}
+      <Card style={{marginBottom:12}}>
+        <div style={{fontSize:10,fontWeight:700,letterSpacing:'.2em',textTransform:'uppercase',color:C.yellow,marginBottom:10}}>⚖ Monete</div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
+          {[['gold','MO','#d4af37'],['silver','MA','#95a5a6'],['copper','MR','#cd6133'],['platinum','MP',playerColor]].map(([k,l,col])=>(
+            <div key={k} style={{textAlign:'center',background:C.bg3,border:`1px solid ${C.border}`,borderRadius:8,padding:'10px 4px'}}>
+              <div style={{fontSize:11,fontWeight:700,color:col,marginBottom:6}}>{l}</div>
+              {isOwner
+                ?<input type="number" min="0" value={char?.[k]??0} onChange={e=>handleCoin(k,e.target.value)} style={{width:'100%',textAlign:'center',padding:'4px 2px',border:`1px solid ${col}44`,borderRadius:4,fontSize:16,fontWeight:700,color:col,background:C.bg,boxSizing:'border-box',fontFamily:"'Cinzel',serif",outline:'none'}}/>
+                :<div style={{fontSize:20,fontWeight:700,color:col}}>{char?.[k]??0}</div>
+              }
+            </div>
+          ))}
+        </div>
+      </Card>
       {isOwner&&<div style={{display:'flex',justifyContent:'flex-end',marginBottom:12}}>
         <button onClick={()=>{setEditingItem(null);setItemForm(EI);setShowItemModal(true)}} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>+ Aggiungi</button>
       </div>}
