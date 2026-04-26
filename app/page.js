@@ -323,8 +323,14 @@ function PlayerSheet({playerName,playerColor,isOwner}){
   const handleCoin=async(key,val)=>{
     const v=parseInt(val)||0
     setCharForm(f=>({...f,[key]:v}))
-    if(char) await supabase.from('player_characters').update({[key]:v}).eq('id',char.id)
-    setChar(c=>c?({...c,[key]:v}):c)
+    setChar(c=>c?({...c,[key]:v}):null)
+    if(char){
+      await supabase.from('player_characters').update({[key]:v}).eq('id',char.id)
+    } else if(playerId) {
+      // Se non c'è ancora una scheda, la crea con solo le monete
+      const {data}=await supabase.from('player_characters').insert([{...EC,[key]:v,player_id:playerId}]).select()
+      if(data) setChar(data[0])
+    }
   }
 
   const saveItem=async()=>{
@@ -535,8 +541,8 @@ function PlayerSheet({playerName,playerColor,isOwner}){
             <div key={k} style={{textAlign:'center',background:C.bg3,border:`1px solid ${C.border}`,borderRadius:8,padding:'10px 4px'}}>
               <div style={{fontSize:11,fontWeight:700,color:col,marginBottom:6}}>{l}</div>
               {isOwner
-                ?<input type="number" min="0" value={char?.[k]??0} onChange={e=>handleCoin(k,e.target.value)} style={{width:'100%',textAlign:'center',padding:'4px 2px',border:`1px solid ${col}44`,borderRadius:4,fontSize:16,fontWeight:700,color:col,background:C.bg,boxSizing:'border-box',fontFamily:"'Cinzel',serif",outline:'none'}}/>
-                :<div style={{fontSize:20,fontWeight:700,color:col}}>{char?.[k]??0}</div>
+                ?<input type="number" min="0" value={charForm[k]??0} onChange={e=>handleCoin(k,e.target.value)} style={{width:'100%',textAlign:'center',padding:'4px 2px',border:`1px solid ${col}44`,borderRadius:4,fontSize:16,fontWeight:700,color:col,background:C.bg,boxSizing:'border-box',fontFamily:"'Cinzel',serif",outline:'none'}}/>
+                :<div style={{fontSize:20,fontWeight:700,color:col}}>{charForm[k]??0}</div>
               }
             </div>
           ))}
