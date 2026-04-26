@@ -1110,19 +1110,25 @@ function NPCSection({ isDM }){
 
   useEffect(()=>{
     if(!currentUserId) return
-    // Carica tutte le note (DM vede tutte, giocatrici vedono le proprie)
-    supabase.from('npc_player_notes').select('*, profiles(character_name)')
+    supabase.from('npc_player_notes').select('*')
       .then(({data})=>{
+        const PLAYER_IDS={
+          'Minerva':'59313926-c35d-4594-838d-ab1552bbb788',
+          'Talia':'1981309e-0111-4800-bba4-cdcaed122664'
+        }
+        const ID_TO_NAME=Object.fromEntries(Object.entries(PLAYER_IDS).map(([k,v])=>[v,k]))
         const map={}
         ;(data||[]).forEach(n=>{
-          const playerName=n.profiles?.character_name||''
           if(!map[n.npc_id]) map[n.npc_id]={}
-          // Per la giocatrice loggata usa npc_id come chiave
+          const playerName=ID_TO_NAME[n.player_id]||''
+          // Per la giocatrice loggata
           if(n.player_id===currentUserId){
-            map[n.npc_id]={...map[n.npc_id],relationship:n.relationship||'',notes:n.notes||'',id:n.id}
+            map[n.npc_id].own={relationship:n.relationship||'',notes:n.notes||'',id:n.id}
           }
-          // Per il DM salva anche per nome giocatrice
-          map[n.npc_id][playerName]={relationship:n.relationship||'',notes:n.notes||'',playerName}
+          // Per nome giocatrice (DM view)
+          if(playerName){
+            map[n.npc_id][playerName]={relationship:n.relationship||'',notes:n.notes||''}
+          }
         })
         setPlayerNotes(map)
       })
@@ -1130,13 +1136,14 @@ function NPCSection({ isDM }){
 
   const savePlayerNote=async(npcId)=>{
     if(!currentUserId) return
-    const existing=playerNotes[npcId]
+    const existing=playerNotes[npcId]?.own
     if(existing?.id){
       await supabase.from('npc_player_notes').update({...noteForm,updated_at:new Date().toISOString()}).eq('id',existing.id)
     } else {
-      await supabase.from('npc_player_notes').insert([{npc_id:npcId,player_id:currentUserId,...noteForm}])
+      const {data}=await supabase.from('npc_player_notes').insert([{npc_id:npcId,player_id:currentUserId,...noteForm}]).select()
+      if(data) setPlayerNotes(p=>({...p,[npcId]:{...p[npcId],own:{...noteForm,id:data[0].id}}}))
     }
-    setPlayerNotes(p=>({...p,[npcId]:{...noteForm,id:existing?.id}}))
+    setPlayerNotes(p=>({...p,[npcId]:{...p[npcId],own:{...(p[npcId]?.own||{}), ...noteForm}}}))
     setEditingNote(null)
   }
 
@@ -1234,7 +1241,7 @@ function NPCSection({ isDM }){
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
                     <div style={{fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:'#c084fc'}}>📓 {isDM?'Note delle giocatrici':'Le mie note'}</div>
                     {!isDM&&(editingNote!==selected.id
-                      ?<button onClick={()=>{setEditingNote(selected.id);setNoteForm({relationship:playerNotes[selected.id]?.relationship||'',notes:playerNotes[selected.id]?.notes||''})}} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:6,padding:'4px 10px',fontSize:11,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>✏️ Modifica</button>
+                      ?<button onClick={()=>{setEditingNote(selected.id);setNoteForm({relationship:playerNotes[selected.id]?.own?.relationship||'',notes:playerNotes[selected.id]?.own?.notes||''})}} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:6,padding:'4px 10px',fontSize:11,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>✏️ Modifica</button>
                       :<div style={{display:'flex',gap:6}}>
                         <button onClick={()=>setEditingNote(null)} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:6,padding:'4px 10px',fontSize:11,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>Annulla</button>
                         <button onClick={()=>savePlayerNote(selected.id)} style={{background:'#c084fc',color:'#fff',border:'none',borderRadius:6,padding:'4px 10px',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>Salva</button>
@@ -1269,15 +1276,15 @@ function NPCSection({ isDM }){
                           </div>
                         </div>
                         :<div>
-                          {playerNotes[selected.id]?.relationship&&<div style={{marginBottom:8}}>
+                          {playerNotes[selected.id]?.own?.relationship&&<div style={{marginBottom:8}}>
                             <div style={{fontSize:10,fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:C.textDim,marginBottom:3}}>Relazione</div>
-                            <div style={{fontSize:14,color:C.text}}>{playerNotes[selected.id].relationship}</div>
+                            <div style={{fontSize:14,color:C.text}}>{playerNotes[selected.id].own.relationship}</div>
                           </div>}
-                          {playerNotes[selected.id]?.notes&&<div>
+                          {playerNotes[selected.id]?.own?.notes&&<div>
                             <div style={{fontSize:10,fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:C.textDim,marginBottom:3}}>Note private</div>
-                            <div style={{fontSize:14,color:C.textDim,whiteSpace:'pre-wrap'}}>{playerNotes[selected.id].notes}</div>
+                            <div style={{fontSize:14,color:C.textDim,whiteSpace:'pre-wrap'}}>{playerNotes[selected.id].own.notes}</div>
                           </div>}
-                          {!playerNotes[selected.id]?.relationship&&!playerNotes[selected.id]?.notes&&<div style={{fontSize:13,color:C.textMuted,fontStyle:'italic'}}>Nessuna nota ancora. Clicca "Modifica" per aggiungerne.</div>}
+                          {!playerNotes[selected.id]?.own?.relationship&&!playerNotes[selected.id]?.own?.notes&&<div style={{fontSize:13,color:C.textMuted,fontStyle:'italic'}}>Nessuna nota ancora. Clicca "Modifica" per aggiungerne.</div>}
                         </div>
                       }
                     </div>
