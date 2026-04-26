@@ -297,12 +297,20 @@ function PlayerSheet({playerName,playerColor,isOwner}){
 
   const saveChar=async()=>{
     if(!playerId) return
+    const payload={...charForm,player_id:playerId}
     if(char){
-      const {data}=await supabase.from('player_characters').update(charForm).eq('id',char.id).eq('player_id',playerId).select()
+      const {data}=await supabase.from('player_characters').update(payload).eq('id',char.id).select()
       if(data) setChar(data[0])
     } else {
-      const {data}=await supabase.from('player_characters').insert([{...charForm,player_id:playerId}]).select()
-      if(data) setChar(data[0])
+      // Controlla se esiste già prima di inserire
+      const {data:existing}=await supabase.from('player_characters').select('id').eq('player_id',playerId).maybeSingle()
+      if(existing){
+        const {data}=await supabase.from('player_characters').update(payload).eq('id',existing.id).select()
+        if(data){setChar(data[0]);setCharForm({...EC,...data[0]})}
+      } else {
+        const {data}=await supabase.from('player_characters').insert([payload]).select()
+        if(data){setChar(data[0]);setCharForm({...EC,...data[0]})}
+      }
     }
     setEditMode(false)
   }
@@ -327,8 +335,15 @@ function PlayerSheet({playerName,playerColor,isOwner}){
     if(char){
       await supabase.from('player_characters').update({[key]:v}).eq('id',char.id)
     } else if(playerId){
-      const {data}=await supabase.from('player_characters').insert([{...EC,[key]:v,player_id:playerId}]).select()
-      if(data){setChar(data[0]);setCharForm({...EC,...data[0]})}
+      // Controlla se esiste già prima di inserire
+      const {data:existing}=await supabase.from('player_characters').select('id').eq('player_id',playerId).maybeSingle()
+      if(existing){
+        await supabase.from('player_characters').update({[key]:v}).eq('id',existing.id)
+        setChar(c=>({...EC,...c,[key]:v,id:existing.id,player_id:playerId}))
+      } else {
+        const {data}=await supabase.from('player_characters').insert([{...EC,[key]:v,player_id:playerId}]).select()
+        if(data){setChar(data[0]);setCharForm({...EC,...data[0]})}
+      }
     }
   }
 
