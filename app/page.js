@@ -250,7 +250,8 @@ export default function App(){
   },[])
 
   const loadProfile=async(uid)=>{
-    const {data}=await supabase.from('profiles').select('*').eq('id',uid).single()
+    const {data, error}=await supabase.from('profiles').select('*').eq('id',uid).maybeSingle()
+    console.log('Profile loaded:', data, 'Error:', error)
     setProfile(data)
     setLoading(false)
     loadAll()
