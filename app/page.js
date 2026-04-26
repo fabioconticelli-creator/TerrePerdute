@@ -1094,12 +1094,41 @@ function NPCSection({ isDM }){
   const [search,setSearch]=useState('')
   const [filterAtt,setFilterAtt]=useState('')
   const [loading,setLoading]=useState(true)
+  const [currentUserId,setCurrentUserId]=useState(null)
+  const [playerNotes,setPlayerNotes]=useState({}) // npcId -> {relationship, notes}
+  const [editingNote,setEditingNote]=useState(null) // npcId being edited
+  const [noteForm,setNoteForm]=useState({relationship:'',notes:''})
   const emptyForm={name:'',role:'',attitude:'Neutrale',description:'',notes_dm:'',image_path:'',vitality:'vivo',first_location:'',current_location:'',faction:''}
   const [form,setForm]=useState(emptyForm)
 
   useEffect(()=>{
+    supabase.auth.getUser().then(({data:{user}})=>{
+      if(user) setCurrentUserId(user.id)
+    })
     supabase.from('npcs').select('*').order('name').then(({data})=>{setNpcs(data||[]);setLoading(false)})
   },[])
+
+  useEffect(()=>{
+    if(!currentUserId) return
+    supabase.from('npc_player_notes').select('*').eq('player_id',currentUserId)
+      .then(({data})=>{
+        const map={}
+        ;(data||[]).forEach(n=>{map[n.npc_id]={relationship:n.relationship||'',notes:n.notes||'',id:n.id}})
+        setPlayerNotes(map)
+      })
+  },[currentUserId])
+
+  const savePlayerNote=async(npcId)=>{
+    if(!currentUserId) return
+    const existing=playerNotes[npcId]
+    if(existing?.id){
+      await supabase.from('npc_player_notes').update({...noteForm,updated_at:new Date().toISOString()}).eq('id',existing.id)
+    } else {
+      await supabase.from('npc_player_notes').insert([{npc_id:npcId,player_id:currentUserId,...noteForm}])
+    }
+    setPlayerNotes(p=>({...p,[npcId]:{...noteForm,id:existing?.id}}))
+    setEditingNote(null)
+  }
 
   const openAdd=()=>{setEditing(null);setForm(emptyForm);setShowModal(true)}
   const openEdit=(e,npc)=>{e&&e.stopPropagation();setEditing(npc);setForm({name:npc.name,role:npc.role||'',attitude:npc.attitude,description:npc.description||'',notes_dm:npc.notes_dm||'',image_path:npc.image_path||'',vitality:npc.vitality||'vivo',first_location:npc.first_location||'',current_location:npc.current_location||'',faction:npc.faction||''});setShowModal(true)}
@@ -1188,6 +1217,43 @@ function NPCSection({ isDM }){
                 {isDM&&selected.notes_dm&&<div style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:'12px 14px',marginTop:16}}>
                   <div style={{fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.red2,marginBottom:6}}>Note DM (segrete)</div>
                   <div style={{fontSize:14,color:C.textDim}}>{selected.notes_dm}</div>
+                </div>}
+
+                {/* Note personali giocatrice */}
+                {!isDM&&currentUserId&&<div style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:'12px 14px',marginTop:16}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                    <div style={{fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:'#c084fc'}}>📓 Le mie note</div>
+                    {editingNote!==selected.id
+                      ?<button onClick={()=>{setEditingNote(selected.id);setNoteForm({relationship:playerNotes[selected.id]?.relationship||'',notes:playerNotes[selected.id]?.notes||''})}} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:6,padding:'4px 10px',fontSize:11,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>✏️ Modifica</button>
+                      :<div style={{display:'flex',gap:6}}>
+                        <button onClick={()=>setEditingNote(null)} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:6,padding:'4px 10px',fontSize:11,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>Annulla</button>
+                        <button onClick={()=>savePlayerNote(selected.id)} style={{background:'#c084fc',color:'#fff',border:'none',borderRadius:6,padding:'4px 10px',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>Salva</button>
+                      </div>
+                    }
+                  </div>
+                  {editingNote===selected.id
+                    ?<div style={{display:'flex',flexDirection:'column',gap:10}}>
+                      <div>
+                        <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:C.textDim,marginBottom:4}}>Relazione</label>
+                        <input value={noteForm.relationship} onChange={e=>setNoteForm(f=>({...f,relationship:e.target.value}))} placeholder="Come ti senti riguardo a questo personaggio?" style={{width:'100%',boxSizing:'border-box',padding:'8px 10px',background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:8,fontSize:14,color:C.text,fontFamily:'inherit',outline:'none'}}/>
+                      </div>
+                      <div>
+                        <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:C.textDim,marginBottom:4}}>Note private</label>
+                        <textarea value={noteForm.notes} onChange={e=>setNoteForm(f=>({...f,notes:e.target.value}))} placeholder="Cosa sai di lui? Segreti, teorie..." style={{width:'100%',boxSizing:'border-box',padding:'8px 10px',background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:8,fontSize:14,color:C.text,fontFamily:'inherit',outline:'none',minHeight:80,resize:'vertical'}}/>
+                      </div>
+                    </div>
+                    :<div>
+                      {playerNotes[selected.id]?.relationship&&<div style={{marginBottom:8}}>
+                        <div style={{fontSize:10,fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:C.textDim,marginBottom:3}}>Relazione</div>
+                        <div style={{fontSize:14,color:C.text}}>{playerNotes[selected.id].relationship}</div>
+                      </div>}
+                      {playerNotes[selected.id]?.notes&&<div>
+                        <div style={{fontSize:10,fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:C.textDim,marginBottom:3}}>Note private</div>
+                        <div style={{fontSize:14,color:C.textDim,whiteSpace:'pre-wrap'}}>{playerNotes[selected.id].notes}</div>
+                      </div>}
+                      {!playerNotes[selected.id]?.relationship&&!playerNotes[selected.id]?.notes&&<div style={{fontSize:13,color:C.textMuted,fontStyle:'italic'}}>Nessuna nota ancora. Clicca "Modifica" per aggiungerne.</div>}
+                    </div>
+                  }
                 </div>}
                 {isDM&&<div style={{display:'flex',gap:8,marginTop:16}}>
                   <button onClick={()=>openEdit(null,selected)} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:8,padding:'8px 16px',fontSize:13,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>✏️ Modifica</button>
