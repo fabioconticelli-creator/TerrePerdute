@@ -214,6 +214,145 @@ function CharSheet({char,isDM,onEdit,onHpChange}){
   )
 }
 
+// ── DICE ROLLER ──
+const DICE=[4,6,8,10,12,20,100]
+const DICE_COLORS={4:'#e74c3c',6:'#e67e22',8:'#f1c40f',10:'#2ecc71',12:'#3498db',20:'#9b59b6',100:'#e91e63'}
+
+function DiceRoller(){
+  const [queue,setQueue]=useState([]) // {faces, count}
+  const [modifier,setModifier]=useState(0)
+  const [results,setResults]=useState(null)
+  const [rolling,setRolling]=useState(false)
+  const [history,setHistory]=useState([])
+
+  const addDie=face=>{
+    setQueue(q=>{
+      const ex=q.find(d=>d.faces===face)
+      if(ex) return q.map(d=>d.faces===face?{...d,count:d.count+1}:d)
+      return [...q,{faces:face,count:1}]
+    })
+  }
+
+  const removeDie=face=>{
+    setQueue(q=>q.map(d=>d.faces===face?{...d,count:Math.max(0,d.count-1)}:d).filter(d=>d.count>0))
+  }
+
+  const roll=()=>{
+    if(!queue.length) return
+    setRolling(true)
+    setTimeout(()=>{
+      const rolls=[]
+      queue.forEach(({faces,count})=>{
+        for(let i=0;i<count;i++){
+          rolls.push({faces,value:Math.floor(Math.random()*faces)+1})
+        }
+      })
+      const total=rolls.reduce((s,r)=>s+r.value,0)+(modifier||0)
+      const res={rolls,total,modifier,timestamp:new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}),label:queue.map(d=>`${d.count}d${d.faces}`).join('+')}
+      setResults(res)
+      setHistory(h=>[res,...h].slice(0,10))
+      setRolling(false)
+    },600)
+  }
+
+  const clear=()=>{setQueue([]);setResults(null);setModifier(0)}
+
+  const queueLabel=queue.map(d=>`${d.count}d${d.faces}`).join(' + ')+(modifier?` ${modifier>=0?'+':'-'} ${Math.abs(modifier)}`:'')
+
+  return <div style={{maxWidth:560,margin:'0 auto'}}>
+    <div style={{fontFamily:"'Cinzel',serif",fontSize:16,fontWeight:700,color:C.red2,marginBottom:16}}>🎲 Tira Dadi</div>
+
+    {/* Dado buttons */}
+    <Card style={{marginBottom:12}}>
+      <div style={{fontSize:10,fontWeight:700,letterSpacing:'.2em',textTransform:'uppercase',color:C.textDim,marginBottom:12}}>Scegli i dadi</div>
+      <div style={{display:'flex',gap:10,flexWrap:'wrap',justifyContent:'center'}}>
+        {DICE.map(face=>{
+          const col=DICE_COLORS[face]
+          const inQueue=queue.find(d=>d.faces===face)
+          return <div key={face} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
+            <button onClick={()=>addDie(face)} style={{
+              width:56,height:56,borderRadius:12,border:`2px solid ${col}`,
+              background:inQueue?col+'33':'transparent',
+              color:col,fontSize:15,fontWeight:700,cursor:'pointer',
+              fontFamily:"'Cinzel',serif",position:'relative',
+              boxShadow:inQueue?`0 0 12px ${col}44`:'none',
+              transition:'all .15s'
+            }}>
+              d{face}
+              {inQueue&&<span style={{position:'absolute',top:-8,right:-8,background:col,color:'#fff',borderRadius:'50%',width:20,height:20,fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center'}}>{inQueue.count}</span>}
+            </button>
+            {inQueue&&<button onClick={()=>removeDie(face)} style={{background:'none',border:'none',cursor:'pointer',fontSize:12,color:C.textDim,padding:0}}>−1</button>}
+          </div>
+        })}
+      </div>
+    </Card>
+
+    {/* Modifier */}
+    <Card style={{marginBottom:12}}>
+      <div style={{display:'flex',alignItems:'center',gap:12}}>
+        <span style={{fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim,whiteSpace:'nowrap'}}>Modificatore</span>
+        <button onClick={()=>setModifier(m=>m-1)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${C.border2}`,background:'transparent',color:C.text,fontSize:18,cursor:'pointer',fontWeight:700}}>−</button>
+        <input type="number" value={modifier} onChange={e=>setModifier(parseInt(e.target.value)||0)} style={{width:60,textAlign:'center',padding:'6px 4px',border:`1px solid ${C.border2}`,borderRadius:8,fontSize:16,fontWeight:700,color:modifier>=0?C.green:C.red2,background:C.bg3,fontFamily:"'Cinzel',serif",outline:'none'}}/>
+        <button onClick={()=>setModifier(m=>m+1)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${C.border2}`,background:'transparent',color:C.text,fontSize:18,cursor:'pointer',fontWeight:700}}>+</button>
+      </div>
+    </Card>
+
+    {/* Queue + Roll button */}
+    {queue.length>0&&<div style={{marginBottom:12,display:'flex',flexDirection:'column',gap:8}}>
+      <div style={{fontSize:13,color:C.textDim,textAlign:'center',fontFamily:"'Cinzel',serif"}}>{queueLabel||'Nessun dado'}</div>
+      <div style={{display:'flex',gap:8}}>
+        <button onClick={roll} disabled={rolling} style={{flex:1,background:C.red,color:'#fff',border:'none',borderRadius:10,padding:'14px',fontSize:16,fontWeight:700,cursor:'pointer',fontFamily:"'Cinzel',serif",letterSpacing:'.05em',opacity:rolling?0.7:1,transition:'opacity .2s'}}>
+          {rolling?'🎲 ...':'🎲 TIRA!'}
+        </button>
+        <button onClick={clear} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:10,padding:'14px 16px',fontSize:13,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>Reset</button>
+      </div>
+    </div>}
+
+    {/* Result */}
+    {results&&<Card style={{marginBottom:12,border:`2px solid ${C.red}44`,background:C.bg3}}>
+      <div style={{textAlign:'center',marginBottom:12}}>
+        <div style={{fontFamily:"'Cinzel',serif",fontSize:48,fontWeight:700,color:C.text,lineHeight:1}}>{results.total}</div>
+        <div style={{fontSize:12,color:C.textDim,marginTop:6}}>{results.label}{results.modifier?` ${results.modifier>=0?'+':''} ${results.modifier}`:''}</div>
+      </div>
+      <div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'center'}}>
+        {results.rolls.map((r,i)=>{
+          const col=DICE_COLORS[r.faces]
+          const isMax=r.value===r.faces
+          const isMin=r.value===1
+          return <div key={i} style={{
+            width:40,height:40,borderRadius:8,
+            background:isMax?col+'33':isMin?C.redDim+'44':C.bg2,
+            border:`2px solid ${isMax?col:isMin?C.red:C.border}`,
+            display:'flex',alignItems:'center',justifyContent:'center',
+            fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:700,
+            color:isMax?col:isMin?C.red2:C.text,
+            boxShadow:isMax?`0 0 8px ${col}66`:'none'
+          }}>
+            {r.value}
+          </div>
+        })}
+        {results.modifier!==0&&<div style={{width:40,height:40,borderRadius:8,background:C.bg2,border:`2px solid ${C.border}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:results.modifier>=0?C.green:C.red2}}>
+          {results.modifier>=0?'+':''}{results.modifier}
+        </div>}
+      </div>
+    </Card>}
+
+    {/* History */}
+    {history.length>1&&<Card>
+      <div style={{fontSize:10,fontWeight:700,letterSpacing:'.2em',textTransform:'uppercase',color:C.textDim,marginBottom:10}}>Ultimi tiri</div>
+      <div style={{display:'flex',flexDirection:'column',gap:6}}>
+        {history.slice(1).map((h,i)=>(
+          <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 10px',background:C.bg3,borderRadius:8}}>
+            <span style={{fontSize:12,color:C.textDim,fontFamily:"'Cinzel',serif"}}>{h.label}</span>
+            <span style={{fontSize:16,fontWeight:700,color:C.text,fontFamily:"'Cinzel',serif"}}>{h.total}</span>
+            <span style={{fontSize:11,color:C.textMuted}}>{h.timestamp}</span>
+          </div>
+        ))}
+      </div>
+    </Card>}
+  </div>
+}
+
 // ── PLAYER SHEET ──
 const STATS_LIST=[['FOR','str'],['DES','dex'],['COS','con'],['INT','int'],['SAG','wis'],['CAR','cha']]
 const ITEM_TYPES=['Arma','Arma magica','Armatura','Consumabile','Vari']
@@ -1361,6 +1500,8 @@ export default function App(){
           ))}
         </div>
 
+      case 'dadi': return <DiceRoller key="dadi"/>
+
       case 'mappa': return <MapSection isDM={isDM} key="mappa"/>
 
       default:{
@@ -1419,6 +1560,7 @@ export default function App(){
     {v:'mappa',icon:'🗺️',l:'Mappa'},
     {v:'fazioni',icon:'⚔️',l:'Fazioni'},
     {v:'cronologia',icon:'⏳',l:'Cronologia'},
+    {v:'dadi',icon:'🎲',l:'Tira Dadi'},
   ]
 
   const playerColors={'minerva':'#c084fc','talia':'#fb923c'}
