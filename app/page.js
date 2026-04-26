@@ -274,25 +274,22 @@ function PlayerSheet({playerName,playerColor,isOwner}){
   const inp={width:'100%',boxSizing:'border-box',padding:'9px 12px',background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,fontSize:15,color:C.text,fontFamily:'inherit',outline:'none',marginTop:4}
 
   useEffect(()=>{
-    // Find player user id from profiles
-    supabase.from('profiles').select('id').eq('character_name',playerName.charAt(0).toUpperCase()+playerName.slice(1)).maybeSingle()
-      .then(({data})=>{
-        const pid=data?.id
-        setPlayerId(pid)
-        if(!pid){setLoading(false);return}
-        Promise.all([
-          supabase.from('player_characters').select('*').eq('player_id',pid).maybeSingle(),
-          supabase.from('player_inventory').select('*').eq('player_id',pid),
-          supabase.from('player_companions').select('*').eq('player_id',pid),
-          supabase.from('player_session_notes').select('*').eq('player_id',pid).order('created_at',{ascending:false}),
-        ]).then(([c,inv,comp,n])=>{
-          if(c.data){setChar(c.data);setCharForm({...EC,...c.data})}
-          setInventory(inv.data||[])
-          setCompanions(comp.data||[])
-          setNotes(n.data||[])
-          setLoading(false)
-        })
+    supabase.auth.getUser().then(({data:{user}})=>{
+      if(!user){setLoading(false);return}
+      setPlayerId(user.id)
+      Promise.all([
+        supabase.from('player_characters').select('*').eq('player_id',user.id).maybeSingle(),
+        supabase.from('player_inventory').select('*').eq('player_id',user.id),
+        supabase.from('player_companions').select('*').eq('player_id',user.id),
+        supabase.from('player_session_notes').select('*').eq('player_id',user.id).order('created_at',{ascending:false}),
+      ]).then(([c,inv,comp,n])=>{
+        if(c.data){setChar(c.data);setCharForm({...EC,...c.data})}
+        setInventory(inv.data||[])
+        setCompanions(comp.data||[])
+        setNotes(n.data||[])
+        setLoading(false)
       })
+    })
   },[playerName])
 
   const saveChar=async()=>{
