@@ -1,7 +1,11 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useRouter } from 'next/navigation'
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
+function getPublicUrl(bucket, path){ if(!path) return null; return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}` }
+async function uploadImage(bucket, file, folder){ const ext=file.name.split('.').pop(); const path=`${folder}/${Date.now()}.${ext}`; const {error}=await supabase.storage.from(bucket).upload(path,file); if(error) return null; return path }
 
 const C = {
   bg:'#0e0b14',bg2:'#13101a',bg3:'#1a1624',bg4:'#201c2e',
@@ -210,6 +214,223 @@ function CharSheet({char,isDM,onEdit,onHpChange}){
   )
 }
 
+// ── NPC SECTION ──
+const ATTITUDE_COLORS = { Alleato:'#2ecc71', Neutrale:'#8a7fa0', Nemico:'#e74c3c', Sconosciuto:'#c084fc' }
+const VITALITY_COLORS = { vivo:'#2ecc71', morto:'#e74c3c', sconosciuto:'#8a7fa0' }
+
+function ImgUpload({ bucket, folder, currentPath, onUploaded }){
+  const [uploading, setUploading]=useState(false)
+  const ref=useRef()
+  const url=getPublicUrl(bucket, currentPath)
+  const handle=async(e)=>{
+    const file=e.target.files[0]; if(!file) return
+    setUploading(true)
+    const path=await uploadImage(bucket, file, folder)
+    setUploading(false)
+    if(path) onUploaded(path)
+  }
+  return (
+    <div style={{marginBottom:14}}>
+      <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim,marginBottom:6}}>Ritratto</label>
+      <div style={{display:'flex',alignItems:'center',gap:12}}>
+        {url&&<img src={url} alt="" style={{width:56,height:56,borderRadius:8,objectFit:'cover',border:`2px solid ${C.red2}`}}/>}
+        <button type="button" onClick={()=>ref.current.click()} style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:'9px 16px',fontSize:14,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>
+          {uploading?'Caricamento...':url?'Cambia':'Carica immagine'}
+        </button>
+        <input ref={ref} type="file" accept="image/*" style={{display:'none'}} onChange={handle}/>
+      </div>
+    </div>
+  )
+}
+
+function NPCCard({ npc, onSelect }){
+  const img=getPublicUrl('npc-images', npc.image_path)
+  const ac=ATTITUDE_COLORS[npc.attitude]||C.textDim
+  const vc=VITALITY_COLORS[npc.vitality]||C.textDim
+  return (
+    <div onClick={()=>onSelect(npc)} style={{display:'flex',alignItems:'center',gap:12,background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:'12px 14px',cursor:'pointer',transition:'border-color .18s'}}
+      onMouseEnter={e=>e.currentTarget.style.borderColor=C.border2}
+      onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
+      <div style={{width:48,height:48,borderRadius:'50%',border:`2px solid ${ac}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,background:C.bg3,flexShrink:0,overflow:'hidden'}}>
+        {img?<img src={img} alt={npc.name} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:
+          <span style={{fontFamily:"'Cinzel',serif",fontWeight:700,color:ac}}>{npc.name[0]}</span>}
+      </div>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{npc.name}</div>
+        <div style={{fontSize:12,color:C.textDim,marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{npc.role}</div>
+        <div style={{display:'flex',gap:5,marginTop:5,flexWrap:'wrap'}}>
+          <span style={{fontSize:10,fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',padding:'2px 7px',border:`1px solid ${ac}55`,borderRadius:4,color:ac}}>{npc.attitude}</span>
+          <span style={{fontSize:10,fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',padding:'2px 7px',border:`1px solid ${vc}55`,borderRadius:4,color:vc}}>{npc.vitality||'vivo'}</span>
+          {npc.faction&&<span style={{fontSize:10,fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',padding:'2px 7px',border:`1px solid #d4af3755`,borderRadius:4,color:'#d4af37'}}>{npc.faction}</span>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function NPCSection({ isDM }){
+  const [npcs,setNpcs]=useState([])
+  const [selected,setSelected]=useState(null)
+  const [showModal,setShowModal]=useState(false)
+  const [editing,setEditing]=useState(null)
+  const [search,setSearch]=useState('')
+  const [filterAtt,setFilterAtt]=useState('')
+  const [loading,setLoading]=useState(true)
+  const emptyForm={name:'',role:'',attitude:'Neutrale',description:'',notes_dm:'',image_path:'',vitality:'vivo',first_location:'',current_location:'',faction:''}
+  const [form,setForm]=useState(emptyForm)
+
+  useEffect(()=>{
+    supabase.from('npcs').select('*').order('name').then(({data})=>{setNpcs(data||[]);setLoading(false)})
+  },[])
+
+  const openAdd=()=>{setEditing(null);setForm(emptyForm);setShowModal(true)}
+  const openEdit=(e,npc)=>{e&&e.stopPropagation();setEditing(npc);setForm({name:npc.name,role:npc.role||'',attitude:npc.attitude,description:npc.description||'',notes_dm:npc.notes_dm||'',image_path:npc.image_path||'',vitality:npc.vitality||'vivo',first_location:npc.first_location||'',current_location:npc.current_location||'',faction:npc.faction||''});setShowModal(true)}
+
+  const save=async()=>{
+    if(!form.name) return
+    if(editing){
+      const {data}=await supabase.from('npcs').update(form).eq('id',editing.id).select()
+      if(data){setNpcs(npcs.map(n=>n.id===editing.id?data[0]:n));if(selected?.id===editing.id)setSelected(data[0])}
+    } else {
+      const {data}=await supabase.from('npcs').insert([form]).select()
+      if(data) setNpcs([...npcs,data[0]].sort((a,b)=>a.name.localeCompare(b.name)))
+    }
+    setShowModal(false)
+  }
+
+  const remove=async(id)=>{await supabase.from('npcs').delete().eq('id',id);setNpcs(npcs.filter(n=>n.id!==id));setSelected(null)}
+
+  const filtered=npcs.filter(n=>(!search||n.name.toLowerCase().includes(search.toLowerCase())||(n.role||'').toLowerCase().includes(search.toLowerCase()))&&(!filterAtt||n.attitude===filterAtt))
+
+  // Group by faction
+  const groups={}
+  filtered.forEach(n=>{const k=n.faction||'— Nessuna fazione —';if(!groups[k])groups[k]=[];groups[k].push(n)})
+  const groupKeys=Object.keys(groups).sort((a,b)=>a==='— Nessuna fazione —'?1:b==='— Nessuna fazione —'?-1:a.localeCompare(b))
+
+  const inp={width:'100%',boxSizing:'border-box',padding:'9px 12px',background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,fontSize:15,color:C.text,fontFamily:'inherit',outline:'none',marginTop:4}
+  const sel={...inp,cursor:'pointer'}
+
+  if(loading) return <div style={{textAlign:'center',padding:'60px 20px',color:C.textMuted}}>Caricamento...</div>
+
+  return (
+    <div>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16,gap:8}}>
+        <span style={{fontFamily:"'Cinzel',serif",fontSize:16,fontWeight:700,color:C.red2,letterSpacing:'.08em'}}>NPC</span>
+        {isDM&&<button onClick={openAdd} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>+ Aggiungi</button>}
+      </div>
+      <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>
+        <input placeholder="Cerca..." value={search} onChange={e=>setSearch(e.target.value)} style={{flex:1,minWidth:160,...inp,marginTop:0}}/>
+        <select value={filterAtt} onChange={e=>setFilterAtt(e.target.value)} style={{...sel,marginTop:0,minWidth:130,width:'auto'}}>
+          <option value="">Tutti</option>
+          {Object.keys(ATTITUDE_COLORS).map(a=><option key={a}>{a}</option>)}
+        </select>
+      </div>
+      <p style={{fontSize:12,color:C.textMuted,marginBottom:14}}>{filtered.length} personaggi</p>
+
+      {groupKeys.map(faction=>(
+        <div key={faction} style={{marginBottom:20}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>
+            <span style={{fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:faction==='— Nessuna fazione —'?C.textMuted:'#d4af37',fontFamily:"'Cinzel',serif"}}>{faction}</span>
+            <span style={{fontSize:11,color:C.textMuted}}>({groups[faction].length})</span>
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {groups[faction].map(n=><NPCCard key={n.id} npc={n} onSelect={setSelected}/>)}
+          </div>
+        </div>
+      ))}
+
+      {/* NPC Detail Panel */}
+      {selected&&(()=>{
+        const img=getPublicUrl('npc-images',selected.image_path)
+        const ac=ATTITUDE_COLORS[selected.attitude]||C.textDim
+        const vc=VITALITY_COLORS[selected.vitality]||C.textDim
+        return (
+          <div onClick={()=>setSelected(null)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.88)',zIndex:200,display:'flex',alignItems:'flex-end',justifyContent:'center',backdropFilter:'blur(4px)'}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,borderRadius:'20px 20px 0 0',border:`1px solid ${C.border2}`,width:'100%',maxWidth:640,maxHeight:'92vh',overflowY:'auto'}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'18px 20px 12px'}}>
+                <span style={{fontFamily:"'Cinzel',serif",fontSize:20,fontWeight:700,color:C.red2}}>{selected.name}</span>
+                <button onClick={()=>setSelected(null)} style={{background:'none',border:'none',fontSize:22,color:C.textDim,cursor:'pointer'}}>✕</button>
+              </div>
+              <div style={{textAlign:'center',paddingBottom:14,color:C.redDim,fontSize:12}}>✦</div>
+              {img&&<div style={{padding:'0 20px 16px'}}>
+                <img src={img} alt={selected.name} style={{width:'100%',borderRadius:12,border:`1px solid ${C.border2}`,maxHeight:340,objectFit:'cover',display:'block'}}/>
+              </div>}
+              <div style={{padding:'0 20px 32px'}}>
+                <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
+                  <span style={{fontSize:10,fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',padding:'2px 8px',border:`1px solid ${ac}55`,borderRadius:4,color:ac}}>{selected.attitude}</span>
+                  <span style={{fontSize:10,fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',padding:'2px 8px',border:`1px solid ${vc}55`,borderRadius:4,color:vc}}>{selected.vitality||'vivo'}</span>
+                  {selected.faction&&<span style={{fontSize:10,fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',padding:'2px 8px',border:`1px solid #d4af3755`,borderRadius:4,color:'#d4af37'}}>{selected.faction}</span>}
+                </div>
+                {selected.role&&<div style={{fontSize:13,color:C.textDim,marginBottom:8,fontStyle:'italic'}}>{selected.role}</div>}
+                {(selected.first_location||selected.current_location)&&<div style={{display:'flex',gap:16,marginBottom:12,flexWrap:'wrap'}}>
+                  {selected.first_location&&<div style={{fontSize:13,color:C.textDim}}><strong style={{color:C.text}}>Primo incontro: </strong>{selected.first_location}</div>}
+                  {selected.current_location&&<div style={{fontSize:13,color:C.textDim}}><strong style={{color:C.text}}>Posizione: </strong>{selected.current_location}</div>}
+                </div>}
+                {selected.description&&<div style={{fontSize:15,color:C.text,lineHeight:1.75}}>{selected.description}</div>}
+                {isDM&&selected.notes_dm&&<div style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:'12px 14px',marginTop:16}}>
+                  <div style={{fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.red2,marginBottom:6}}>Note DM (segrete)</div>
+                  <div style={{fontSize:14,color:C.textDim}}>{selected.notes_dm}</div>
+                </div>}
+                {isDM&&<div style={{display:'flex',gap:8,marginTop:16}}>
+                  <button onClick={()=>openEdit(null,selected)} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:8,padding:'8px 16px',fontSize:13,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>✏️ Modifica</button>
+                  <button onClick={()=>remove(selected.id)} style={{background:C.redDim+'33',border:`1px solid ${C.redDim}`,borderRadius:8,padding:'8px 16px',fontSize:13,cursor:'pointer',color:C.red2,fontFamily:'inherit'}}>🗑️ Elimina</button>
+                </div>}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Add/Edit Modal */}
+      {showModal&&(
+        <div onClick={()=>setShowModal(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.88)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(4px)'}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,maxWidth:500,width:'92%',maxHeight:'88vh',overflowY:'auto'}}>
+            <div style={{padding:'18px 20px 14px',borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <span style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.red2}}>{editing?'Modifica':'Nuovo Personaggio'}</span>
+              <button onClick={()=>setShowModal(false)} style={{background:'none',border:'none',fontSize:20,color:C.textDim,cursor:'pointer'}}>✕</button>
+            </div>
+            <div style={{padding:'18px 20px'}}>
+              <ImgUpload bucket="npc-images" folder="npcs" currentPath={form.image_path} onUploaded={p=>setForm({...form,image_path:p})}/>
+              {[['Nome','name','text'],['Ruolo','role','text'],['Luogo primo incontro','first_location','text'],['Posizione attuale','current_location','text'],['Fazione','faction','text']].map(([l,k])=>(
+                <div key={k} style={{marginBottom:13}}>
+                  <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>{l}</label>
+                  <input value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} style={inp}/>
+                </div>
+              ))}
+              <div style={{marginBottom:13}}>
+                <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Attitudine</label>
+                <select value={form.attitude} onChange={e=>setForm({...form,attitude:e.target.value})} style={sel}>
+                  {Object.keys(ATTITUDE_COLORS).map(a=><option key={a}>{a}</option>)}
+                </select>
+              </div>
+              <div style={{marginBottom:13}}>
+                <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Stato</label>
+                <select value={form.vitality} onChange={e=>setForm({...form,vitality:e.target.value})} style={sel}>
+                  <option value="vivo">Vivo</option>
+                  <option value="morto">Morto</option>
+                  <option value="sconosciuto">Sconosciuto</option>
+                </select>
+              </div>
+              <div style={{marginBottom:13}}>
+                <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Descrizione</label>
+                <textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})} style={{...inp,minHeight:90,resize:'vertical'}}/>
+              </div>
+              {isDM&&<div style={{marginBottom:13}}>
+                <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Note DM (segrete)</label>
+                <textarea value={form.notes_dm} onChange={e=>setForm({...form,notes_dm:e.target.value})} style={{...inp,minHeight:80,resize:'vertical'}}/>
+              </div>}
+            </div>
+            <div style={{padding:'12px 20px 18px',display:'flex',gap:8,justifyContent:'flex-end',borderTop:`1px solid ${C.border}`}}>
+              <button onClick={()=>setShowModal(false)} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:8,padding:'8px 16px',fontSize:13,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>Annulla</button>
+              <button onClick={save} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'8px 16px',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>Salva</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── MAIN APP ──
 export default function App(){
   const [user,setUser]=useState(null)
@@ -362,28 +583,7 @@ export default function App(){
           ))}
         </div>
 
-      case 'npc':
-        if(!npcs.length)return<Empty msg="Nessun NPC ancora"/>
-        return <div style={{display:'flex',flexDirection:'column',gap:10}}>
-          {npcs.map(n=>(
-            <div key={n.id} style={{display:'flex',alignItems:'center',gap:12,background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:'12px 14px',cursor:'pointer'}} onClick={()=>setNpcOpen(n)}>
-              <div style={{width:48,height:48,borderRadius:10,background:C.bg3,border:`1px solid ${C.border2}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0,overflow:'hidden'}}>
-                {n.img_url?<img src={n.img_url} alt={n.name} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:(n.icon||'👤')}
-              </div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{n.name}</div>
-                <div style={{fontSize:12,color:C.textDim,marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{n.role}</div>
-                <div style={{display:'flex',gap:5,marginTop:5,flexWrap:'wrap'}}>
-                  {n.attitude&&<Tag t={n.attitude}/>}{n.stato&&<Tag t={n.stato}/>}
-                </div>
-              </div>
-              {isDM&&<div onClick={e=>e.stopPropagation()} style={{display:'flex',flexDirection:'column',gap:4}}>
-                <Btn onClick={()=>openModal('npcs',n)}>✏</Btn>
-                <Btn onClick={()=>deleteItem('npcs',n.id)}>✕</Btn>
-              </div>}
-            </div>
-          ))}
-        </div>
+      case 'npc': return <NPCSection isDM={isDM} key="npc"/>
 
       case 'fazioni':
         if(!factions.length)return<Empty msg="Nessuna fazione ancora"/>
