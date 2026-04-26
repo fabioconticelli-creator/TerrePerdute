@@ -1329,10 +1329,12 @@ export default function App(){
       default:{
         const playerName = view
         if(playerName==='minerva'||playerName==='talia'){
-          if(!isDM && profile?.character_name?.toLowerCase()!==playerName)
+          const charNameMatch = profile?.character_name?.toLowerCase()===playerName
+          const emailMatch = user?.email?.toLowerCase().includes(playerName)
+          if(!isDM && !charNameMatch && !emailMatch)
             return<Empty msg="Accesso non autorizzato"/>
           const playerProfile = [{name:'Minerva',color:'#fb923c'},{name:'Talia',color:'#c084fc'}].find(p=>p.name.toLowerCase()===playerName)
-          return <PlayerSheet playerName={playerName} playerColor={playerProfile?.color||C.red2} isOwner={isDM || profile?.character_name?.toLowerCase()===playerName}/>
+          return <PlayerSheet playerName={playerName} playerColor={playerProfile?.color||C.red2} isOwner={isDM || charNameMatch || emailMatch}/>
         }
         return<Empty msg="Sezione non trovata"/>
       }
