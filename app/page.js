@@ -214,6 +214,633 @@ function CharSheet({char,isDM,onEdit,onHpChange}){
   )
 }
 
+// ── PLAYER SHEET ──
+const STATS_LIST=[['FOR','str'],['DES','dex'],['COS','con'],['INT','int'],['SAG','wis'],['CAR','cha']]
+const ITEM_TYPES=['Arma','Arma magica','Armatura','Consumabile','Vari']
+const STATUS_COLORS={'visitato':'#2ecc71','noto':'#3498db','sconosciuto':'#8a7fa0','pericoloso':'#e74c3c'}
+
+function ImgUploadChar({bucket,folder,currentPath,onUploaded,label}){
+  const [uploading,setUploading]=useState(false)
+  const ref=useRef()
+  const url=getPublicUrl(bucket,currentPath)
+  const handle=async(e)=>{
+    const file=e.target.files[0]; if(!file) return
+    setUploading(true)
+    const path=await uploadImage(bucket,file,folder)
+    setUploading(false)
+    if(path) onUploaded(path)
+  }
+  return <div style={{marginBottom:14}}>
+    <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim,marginBottom:6}}>{label}</label>
+    <div style={{display:'flex',alignItems:'center',gap:12}}>
+      {url&&<img src={url} alt="" style={{width:56,height:56,borderRadius:'50%',objectFit:'cover',border:`2px solid ${C.red2}`}}/>}
+      <button type="button" onClick={()=>ref.current.click()} style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:'9px 16px',fontSize:14,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>
+        {uploading?'Caricamento...':url?'Cambia':'Carica immagine'}
+      </button>
+      <input ref={ref} type="file" accept="image/*" style={{display:'none'}} onChange={handle}/>
+    </div>
+  </div>
+}
+
+function PlayerSheet({playerName,playerColor,isOwner}){
+  const [tab,setTab]=useState('scheda')
+  const [char,setChar]=useState(null)
+  const [inventory,setInventory]=useState([])
+  const [companions,setCompanions]=useState([])
+  const [notes,setNotes]=useState([])
+  const [loading,setLoading]=useState(true)
+  const [editMode,setEditMode]=useState(false)
+  const [playerId,setPlayerId]=useState(null)
+  const [expandedNote,setExpandedNote]=useState(null)
+
+  const EC={name:'',class:'',race:'',level:1,background:'',hp:10,max_hp:10,ac:10,str:10,dex:10,con:10,int:10,wis:10,cha:10,attacks:'',spell_slots_total:'',spell_slots_used:'',gold:0,silver:0,copper:0,platinum:0,image_path:''}
+  const [charForm,setCharForm]=useState(EC)
+
+  const EI={name:'',type:'Vari',description:'',quantity:1}
+  const [itemForm,setItemForm]=useState(EI)
+  const [showItemModal,setShowItemModal]=useState(false)
+  const [editingItem,setEditingItem]=useState(null)
+
+  const ECP={name:'',type:'',hp:'',ac:'',notes:'',image_path:''}
+  const [compForm,setCompForm]=useState(ECP)
+  const [showCompModal,setShowCompModal]=useState(false)
+  const [editingComp,setEditingComp]=useState(null)
+
+  const EN={session_title:'',date:'',content:''}
+  const [noteForm,setNoteForm]=useState(EN)
+  const [showNoteModal,setShowNoteModal]=useState(false)
+  const [editingNote,setEditingNote]=useState(null)
+
+  const inp={width:'100%',boxSizing:'border-box',padding:'9px 12px',background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,fontSize:15,color:C.text,fontFamily:'inherit',outline:'none',marginTop:4}
+
+  useEffect(()=>{
+    // Find player user id from profiles
+    supabase.from('profiles').select('id').eq('character_name',playerName.charAt(0).toUpperCase()+playerName.slice(1)).maybeSingle()
+      .then(({data})=>{
+        const pid=data?.id
+        setPlayerId(pid)
+        if(!pid){setLoading(false);return}
+        Promise.all([
+          supabase.from('player_characters').select('*').eq('player_id',pid).maybeSingle(),
+          supabase.from('player_inventory').select('*').eq('player_id',pid),
+          supabase.from('player_companions').select('*').eq('player_id',pid),
+          supabase.from('player_session_notes').select('*').eq('player_id',pid).order('created_at',{ascending:false}),
+        ]).then(([c,inv,comp,n])=>{
+          if(c.data){setChar(c.data);setCharForm({...EC,...c.data})}
+          setInventory(inv.data||[])
+          setCompanions(comp.data||[])
+          setNotes(n.data||[])
+          setLoading(false)
+        })
+      })
+  },[playerName])
+
+  const saveChar=async()=>{
+    if(!playerId) return
+    if(char){
+      const {data}=await supabase.from('player_characters').update(charForm).eq('id',char.id).select()
+      if(data) setChar(data[0])
+    } else {
+      const {data}=await supabase.from('player_characters').insert([{...charForm,player_id:playerId}]).select()
+      if(data) setChar(data[0])
+    }
+    setEditMode(false)
+  }
+
+  const handleHp=async(delta)=>{
+    if(!char) return
+    const newHp=Math.max(0,Math.min(char.max_hp,char.hp+delta))
+    setChar(c=>({...c,hp:newHp}))
+    await supabase.from('player_characters').update({hp:newHp}).eq('id',char.id)
+  }
+
+  const handleHpInput=async(val)=>{
+    const v=parseInt(val)||0
+    setChar(c=>({...c,hp:v}))
+    if(char) await supabase.from('player_characters').update({hp:v}).eq('id',char.id)
+  }
+
+  const handleCoin=async(key,val)=>{
+    const v=parseInt(val)||0
+    setCharForm(f=>({...f,[key]:v}))
+    if(char) await supabase.from('player_characters').update({[key]:v}).eq('id',char.id)
+    setChar(c=>c?({...c,[key]:v}):c)
+  }
+
+  const saveItem=async()=>{
+    if(!itemForm.name||!playerId) return
+    if(editingItem){
+      const {data}=await supabase.from('player_inventory').update(itemForm).eq('id',editingItem.id).select()
+      if(data) setInventory(inventory.map(i=>i.id===editingItem.id?data[0]:i))
+    } else {
+      const {data}=await supabase.from('player_inventory').insert([{...itemForm,player_id:playerId}]).select()
+      if(data) setInventory([...inventory,data[0]])
+    }
+    setShowItemModal(false)
+  }
+
+  const saveComp=async()=>{
+    if(!compForm.name||!playerId) return
+    if(editingComp){
+      const {data}=await supabase.from('player_companions').update(compForm).eq('id',editingComp.id).select()
+      if(data) setCompanions(companions.map(c=>c.id===editingComp.id?data[0]:c))
+    } else {
+      const {data}=await supabase.from('player_companions').insert([{...compForm,player_id:playerId}]).select()
+      if(data) setCompanions([...companions,data[0]])
+    }
+    setShowCompModal(false)
+  }
+
+  const saveNote=async()=>{
+    if(!noteForm.session_title||!playerId) return
+    if(editingNote){
+      const {data}=await supabase.from('player_session_notes').update(noteForm).eq('id',editingNote.id).select()
+      if(data) setNotes(notes.map(n=>n.id===editingNote.id?data[0]:n))
+    } else {
+      const {data}=await supabase.from('player_session_notes').insert([{...noteForm,player_id:playerId}]).select()
+      if(data) setNotes([data[0],...notes])
+    }
+    setShowNoteModal(false)
+  }
+
+  if(loading) return <div style={{textAlign:'center',padding:'60px 20px',color:C.textMuted}}>Caricamento...</div>
+
+  const hpPct=char&&char.max_hp>0?Math.max(0,Math.min(100,(char.hp/char.max_hp)*100)):0
+  const hpColor=hpPct>60?C.green:hpPct>30?C.yellow:C.red2
+  const imgUrl=char?getPublicUrl('character-images',char.image_path):null
+  const slotsT=char?.spell_slots_total?char.spell_slots_total.split(',').map(s=>parseInt(s.trim())||0):[]
+  const slotsU=char?.spell_slots_used?char.spell_slots_used.split(',').map(s=>parseInt(s.trim())||0):[]
+
+  const tabs=['scheda','inventario','famigli','note sessione']
+
+  return <div style={{maxWidth:560,margin:'0 auto'}}>
+    {/* Header */}
+    <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:16}}>
+      {imgUrl
+        ?<img src={imgUrl} alt="" style={{width:64,height:64,borderRadius:'50%',objectFit:'cover',border:`3px solid ${playerColor}`,flexShrink:0,boxShadow:`0 0 16px ${playerColor}66`}}/>
+        :<div style={{width:64,height:64,borderRadius:'50%',background:playerColor+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:24,fontWeight:700,color:playerColor,border:`3px solid ${playerColor}`,flexShrink:0,fontFamily:"'Cinzel',serif"}}>{playerName[0].toUpperCase()}</div>
+      }
+      <div>
+        <div style={{fontFamily:"'Cinzel',serif",fontSize:22,fontWeight:700,color:C.text}}>{char?.name||playerName.charAt(0).toUpperCase()+playerName.slice(1)}</div>
+        {char&&<div style={{fontSize:13,color:C.textDim,marginTop:3}}>{char.race} · {char.class} · Lv {char.level}</div>}
+      </div>
+    </div>
+
+    {/* Tabs */}
+    <div style={{display:'flex',gap:2,background:C.bg3,borderRadius:10,padding:3,marginBottom:16,overflowX:'auto',scrollbarWidth:'none'}}>
+      {tabs.map(t=><button key={t} onClick={()=>setTab(t)} style={{fontSize:12,fontWeight:tab===t?600:400,padding:'7px 13px',borderRadius:8,border:'none',background:tab===t?C.red:'transparent',color:tab===t?'#fff':C.textDim,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,fontFamily:'inherit'}}>{t}</button>)}
+    </div>
+
+    {/* SCHEDA */}
+    {tab==='scheda'&&<>
+      <div style={{display:'flex',justifyContent:'flex-end',marginBottom:10}}>
+        {isOwner&&(editMode
+          ?<div style={{display:'flex',gap:8}}>
+            <button onClick={()=>setEditMode(false)} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:8,padding:'7px 14px',fontSize:12,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>Annulla</button>
+            <button onClick={saveChar} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>Salva</button>
+          </div>
+          :<button onClick={()=>{setCharForm({...EC,...(char||{})});setEditMode(true)}} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:8,padding:'7px 14px',fontSize:12,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>Modifica</button>
+        )}
+      </div>
+
+      {editMode?<Card>
+        <ImgUploadChar bucket="character-images" folder="characters" currentPath={charForm.image_path} onUploaded={p=>setCharForm({...charForm,image_path:p})} label="Ritratto"/>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(min(100%,180px),1fr))',gap:'0 12px'}}>
+          {[['Nome','name'],['Classe','class'],['Razza','race'],['Background','background'],['Livello','level'],['CA','ac'],['PF attuali','hp'],['PF massimi','max_hp']].map(([l,k])=>(
+            <div key={k} style={{marginBottom:13}}>
+              <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>{l}</label>
+              <input type={['level','ac','hp','max_hp'].includes(k)?'number':'text'} value={charForm[k]} onChange={e=>setCharForm({...charForm,[k]:e.target.value})} style={inp}/>
+            </div>
+          ))}
+        </div>
+        <div style={{fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim,marginBottom:8,marginTop:4}}>Caratteristiche</div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:6,marginBottom:14}}>
+          {STATS_LIST.map(([l,k])=>(
+            <div key={k} style={{marginBottom:0}}>
+              <label style={{display:'block',fontSize:9,fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:C.textDim,textAlign:'center'}}>{l}</label>
+              <input type="number" value={charForm[k]} onChange={e=>setCharForm({...charForm,[k]:e.target.value})} style={{...inp,textAlign:'center',padding:'6px 4px'}}/>
+            </div>
+          ))}
+        </div>
+        <div style={{marginBottom:13}}>
+          <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Attacchi (Nome | Bonus | Danni)</label>
+          <textarea value={charForm.attacks} onChange={e=>setCharForm({...charForm,attacks:e.target.value})} placeholder="Spada lunga | +5 | 1d8+3" style={{...inp,minHeight:80,resize:'vertical'}}/>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 12px'}}>
+          <div style={{marginBottom:13}}>
+            <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Slot totali (es. 4,3,2)</label>
+            <input value={charForm.spell_slots_total} onChange={e=>setCharForm({...charForm,spell_slots_total:e.target.value})} style={inp}/>
+          </div>
+          <div style={{marginBottom:13}}>
+            <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Slot usati (es. 2,1,0)</label>
+            <input value={charForm.spell_slots_used} onChange={e=>setCharForm({...charForm,spell_slots_used:e.target.value})} style={inp}/>
+          </div>
+        </div>
+      </Card>:char?<div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
+          {[['CA',char.ac],['Livello',char.level],['Background',char.background]].map(([l,v])=>(
+            <div key={l} style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:'12px 8px',textAlign:'center'}}>
+              <div style={{fontSize:9,fontWeight:700,letterSpacing:'.18em',textTransform:'uppercase',color:C.textDim}}>{l}</div>
+              <div style={{fontFamily:"'Cinzel',serif",fontSize:l==='Background'?13:22,fontWeight:700,color:C.text,marginTop:l==='Background'?5:3}}>{v||'—'}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* HP */}
+        <Card style={{marginBottom:12}}>
+          <div style={{fontSize:13,color:C.textDim,marginBottom:10}}>Punti Ferita</div>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <button onClick={()=>handleHp(-1)} style={{width:36,height:36,borderRadius:'50%',border:`2px solid ${C.red}`,background:'transparent',color:C.red,fontSize:20,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700}}>−</button>
+            <input type="number" value={char.hp} onChange={e=>handleHpInput(e.target.value)} style={{fontFamily:"'Cinzel',serif",fontSize:22,fontWeight:700,color:C.text,background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:'6px 14px',minWidth:60,textAlign:'center',width:80,outline:'none'}}/>
+            <div style={{fontSize:13,color:C.textDim}}>/ {char.max_hp}</div>
+            <button onClick={()=>handleHp(1)} style={{width:36,height:36,borderRadius:'50%',border:`2px solid ${C.green}`,background:'transparent',color:C.green,fontSize:20,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,marginLeft:'auto'}}>+</button>
+          </div>
+          <div style={{height:6,background:C.bg4,borderRadius:3,overflow:'hidden',marginTop:10}}>
+            <div style={{height:'100%',width:`${hpPct}%`,background:hpColor,borderRadius:3,transition:'width .3s'}}/>
+          </div>
+        </Card>
+
+        {/* Caratteristiche */}
+        <Card style={{marginBottom:12}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:'.2em',textTransform:'uppercase',color:C.red2,marginBottom:10}}>Caratteristiche</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:6}}>
+            {STATS_LIST.map(([l,k])=>(
+              <div key={k} style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:'10px 4px',textAlign:'center'}}>
+                <div style={{fontSize:9,fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:C.textDim}}>{l}</div>
+                <div style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.text,margin:'3px 0'}}>{char[k]||10}</div>
+                <div style={{fontSize:11,fontWeight:600,color:playerColor}}>{fmt(mod(char[k]||10))}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* Attacchi */}
+        {char.attacks&&<Card style={{marginBottom:12}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:'.2em',textTransform:'uppercase',color:C.red2,marginBottom:10}}>Attacchi</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr auto auto',gap:'6px 14px',alignItems:'center'}}>
+            {['NOME','BONUS','DANNI'].map(h=><span key={h} style={{fontSize:10,fontWeight:700,color:C.textDim,letterSpacing:'.1em'}}>{h}</span>)}
+            {char.attacks.split('\n').filter(Boolean).map((atk,i)=>{
+              const [nome,bonus,danni]=atk.split('|').map(s=>s?.trim())
+              return [
+                <span key={`n${i}`} style={{fontWeight:600,color:C.text,fontSize:14}}>{nome}</span>,
+                <span key={`b${i}`} style={{color:C.green,fontWeight:700,fontSize:14}}>{bonus}</span>,
+                <span key={`d${i}`} style={{color:C.red2,fontSize:14}}>{danni}</span>
+              ]
+            })}
+          </div>
+        </Card>}
+
+        {/* Slot */}
+        {slotsT.length>0&&<Card style={{marginBottom:12}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:'.2em',textTransform:'uppercase',color:C.red2,marginBottom:10}}>Slot Incantesimo</div>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            {slotsT.map((total,i)=>{
+              const rem=total-(slotsU[i]||0)
+              return <div key={i} style={{textAlign:'center',background:C.bg3,borderRadius:8,padding:'8px 12px',minWidth:52,border:`1px solid ${C.border}`}}>
+                <div style={{fontSize:10,color:C.textDim,marginBottom:6,letterSpacing:'.08em'}}>Lv {i+1}</div>
+                <div style={{display:'flex',gap:3,justifyContent:'center',flexWrap:'wrap'}}>
+                  {Array.from({length:total}).map((_,j)=><div key={j} style={{width:10,height:10,borderRadius:'50%',background:j<rem?playerColor:C.border}}/>)}
+                </div>
+                <div style={{fontSize:11,color:C.textDim,marginTop:6}}>{rem}/{total}</div>
+              </div>
+            })}
+          </div>
+        </Card>}
+
+        {/* Monete */}
+        <Card style={{marginBottom:12}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:'.2em',textTransform:'uppercase',color:C.yellow,marginBottom:10}}>⚖ Monete</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
+            {[['gold','MO','#d4af37'],['silver','MA','#95a5a6'],['copper','MR','#cd6133'],['platinum','MP',playerColor]].map(([k,l,col])=>(
+              <div key={k} style={{textAlign:'center',background:C.bg3,border:`1px solid ${C.border}`,borderRadius:8,padding:'10px 4px'}}>
+                <div style={{fontSize:11,fontWeight:700,color:col,marginBottom:6}}>{l}</div>
+                {isOwner
+                  ?<input type="number" min="0" value={char[k]??0} onChange={e=>handleCoin(k,e.target.value)} style={{width:'100%',textAlign:'center',padding:'4px 2px',border:`1px solid ${col}44`,borderRadius:4,fontSize:16,fontWeight:700,color:col,background:C.bg,boxSizing:'border-box',fontFamily:"'Cinzel',serif",outline:'none'}}/>
+                  :<div style={{fontSize:20,fontWeight:700,color:col}}>{char[k]??0}</div>
+                }
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>:<p style={{color:C.textMuted,fontStyle:'italic',textAlign:'center',padding:'40px 20px'}}>{isOwner?'Nessuna scheda. Clicca "Modifica" per iniziare.':'Scheda non ancora creata.'}</p>}
+    </>}
+
+    {/* INVENTARIO */}
+    {tab==='inventario'&&<div>
+      {isOwner&&<div style={{display:'flex',justifyContent:'flex-end',marginBottom:12}}>
+        <button onClick={()=>{setEditingItem(null);setItemForm(EI);setShowItemModal(true)}} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>+ Aggiungi</button>
+      </div>}
+      {inventory.length===0&&<p style={{color:C.textMuted,fontStyle:'italic',textAlign:'center',padding:'40px 20px'}}>Inventario vuoto...</p>}
+      <div style={{display:'flex',flexDirection:'column',gap:8}}>
+        {inventory.map(item=>(
+          <Card key={item.id}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
+              <div style={{flex:1}}>
+                <span style={{fontWeight:600,fontSize:15,color:C.text,fontFamily:"'Cinzel',serif"}}>{item.name}</span>
+                {item.quantity>1&&<span style={{fontSize:13,color:C.textDim,marginLeft:8}}>×{item.quantity}</span>}
+                <span style={{fontSize:10,fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',padding:'2px 7px',border:`1px solid ${C.border2}`,borderRadius:4,color:C.textDim,marginLeft:8}}>{item.type}</span>
+              </div>
+              {isOwner&&<div style={{display:'flex',gap:6,flexShrink:0}}>
+                <button onClick={()=>{setEditingItem(item);setItemForm({name:item.name,type:item.type,description:item.description||'',quantity:item.quantity});setShowItemModal(true)}} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,padding:4,color:C.textDim}}>✏️</button>
+                <button onClick={async()=>{await supabase.from('player_inventory').delete().eq('id',item.id);setInventory(inventory.filter(i=>i.id!==item.id))}} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,padding:4,color:C.textDim}}>🗑️</button>
+              </div>}
+            </div>
+            {item.description&&<p style={{margin:'6px 0 0',fontSize:13,color:C.textDim}}>{item.description}</p>}
+          </Card>
+        ))}
+      </div>
+      {showItemModal&&<div onClick={()=>setShowItemModal(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.88)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(4px)'}}>
+        <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,maxWidth:480,width:'92%',maxHeight:'88vh',overflowY:'auto'}}>
+          <div style={{padding:'18px 20px 14px',borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <span style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.red2}}>{editingItem?'Modifica':'Nuovo Oggetto'}</span>
+            <button onClick={()=>setShowItemModal(false)} style={{background:'none',border:'none',fontSize:20,color:C.textDim,cursor:'pointer'}}>✕</button>
+          </div>
+          <div style={{padding:'18px 20px'}}>
+            {[['Nome','name'],['Quantità','quantity']].map(([l,k])=>(
+              <div key={k} style={{marginBottom:13}}>
+                <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>{l}</label>
+                <input type={k==='quantity'?'number':'text'} value={itemForm[k]} onChange={e=>setItemForm({...itemForm,[k]:e.target.value})} style={inp}/>
+              </div>
+            ))}
+            <div style={{marginBottom:13}}>
+              <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Tipo</label>
+              <select value={itemForm.type} onChange={e=>setItemForm({...itemForm,type:e.target.value})} style={{...inp,cursor:'pointer'}}>
+                {ITEM_TYPES.map(t=><option key={t} style={{background:C.bg2}}>{t}</option>)}
+              </select>
+            </div>
+            <div style={{marginBottom:13}}>
+              <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Descrizione</label>
+              <textarea value={itemForm.description} onChange={e=>setItemForm({...itemForm,description:e.target.value})} style={{...inp,minHeight:70,resize:'vertical'}}/>
+            </div>
+          </div>
+          <div style={{padding:'12px 20px 18px',display:'flex',gap:8,justifyContent:'flex-end',borderTop:`1px solid ${C.border}`}}>
+            <button onClick={()=>setShowItemModal(false)} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:8,padding:'8px 16px',fontSize:13,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>Annulla</button>
+            <button onClick={saveItem} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'8px 16px',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>Salva</button>
+          </div>
+        </div>
+      </div>}
+    </div>}
+
+    {/* FAMIGLI */}
+    {tab==='famigli'&&<div>
+      {isOwner&&<div style={{display:'flex',justifyContent:'flex-end',marginBottom:12}}>
+        <button onClick={()=>{setEditingComp(null);setCompForm(ECP);setShowCompModal(true)}} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>+ Aggiungi</button>
+      </div>}
+      {companions.length===0&&<p style={{color:C.textMuted,fontStyle:'italic',textAlign:'center',padding:'40px 20px'}}>Nessun compagno...</p>}
+      {companions.map(c=>{
+        const cImg=getPublicUrl('character-images',c.image_path)
+        return <Card key={c.id} style={{marginBottom:10}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+            <div style={{display:'flex',alignItems:'center',gap:10}}>
+              {cImg?<img src={cImg} alt={c.name} style={{width:44,height:44,borderRadius:'50%',objectFit:'cover',border:`2px solid ${C.border2}`,flexShrink:0}}/>
+                :<div style={{width:44,height:44,borderRadius:'50%',background:C.bg3,display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,flexShrink:0,border:`2px solid ${C.border}`}}>🐾</div>}
+              <div>
+                <div style={{fontWeight:700,color:C.text,fontFamily:"'Cinzel',serif"}}>{c.name}</div>
+                <div style={{fontSize:13,color:C.textDim}}>{c.type}</div>
+              </div>
+            </div>
+            {isOwner&&<div style={{display:'flex',gap:4}}>
+              <button onClick={()=>{setEditingComp(c);setCompForm({name:c.name,type:c.type||'',hp:c.hp||'',ac:c.ac||'',notes:c.notes||'',image_path:c.image_path||''});setShowCompModal(true)}} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,padding:4,color:C.textDim}}>✏️</button>
+              <button onClick={async()=>{await supabase.from('player_companions').delete().eq('id',c.id);setCompanions(companions.filter(x=>x.id!==c.id))}} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,padding:4,color:C.textDim}}>🗑️</button>
+            </div>}
+          </div>
+          <div style={{display:'flex',gap:20,marginTop:8}}>
+            {c.hp&&<span style={{fontSize:13,color:C.textDim}}><span style={{color:C.textMuted}}>PF </span>{c.hp}</span>}
+            {c.ac&&<span style={{fontSize:13,color:C.textDim}}><span style={{color:C.textMuted}}>CA </span>{c.ac}</span>}
+          </div>
+          {c.notes&&<p style={{margin:'6px 0 0',fontSize:13,color:C.textDim}}>{c.notes}</p>}
+        </Card>
+      })}
+      {showCompModal&&<div onClick={()=>setShowCompModal(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.88)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(4px)'}}>
+        <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,maxWidth:480,width:'92%',maxHeight:'88vh',overflowY:'auto'}}>
+          <div style={{padding:'18px 20px 14px',borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <span style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.red2}}>{editingComp?'Modifica':'Nuovo Compagno'}</span>
+            <button onClick={()=>setShowCompModal(false)} style={{background:'none',border:'none',fontSize:20,color:C.textDim,cursor:'pointer'}}>✕</button>
+          </div>
+          <div style={{padding:'18px 20px'}}>
+            <ImgUploadChar bucket="character-images" folder="companions" currentPath={compForm.image_path} onUploaded={p=>setCompForm({...compForm,image_path:p})} label="Foto"/>
+            {[['Nome','name'],['Tipo','type'],['PF','hp'],['CA','ac']].map(([l,k])=>(
+              <div key={k} style={{marginBottom:13}}>
+                <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>{l}</label>
+                <input value={compForm[k]} onChange={e=>setCompForm({...compForm,[k]:e.target.value})} style={inp}/>
+              </div>
+            ))}
+            <div style={{marginBottom:13}}>
+              <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Note</label>
+              <textarea value={compForm.notes} onChange={e=>setCompForm({...compForm,notes:e.target.value})} style={{...inp,minHeight:70,resize:'vertical'}}/>
+            </div>
+          </div>
+          <div style={{padding:'12px 20px 18px',display:'flex',gap:8,justifyContent:'flex-end',borderTop:`1px solid ${C.border}`}}>
+            <button onClick={()=>setShowCompModal(false)} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:8,padding:'8px 16px',fontSize:13,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>Annulla</button>
+            <button onClick={saveComp} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'8px 16px',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>Salva</button>
+          </div>
+        </div>
+      </div>}
+    </div>}
+
+    {/* NOTE SESSIONE */}
+    {tab==='note sessione'&&<div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+        <span style={{fontFamily:"'Cinzel',serif",fontSize:16,fontWeight:700,color:C.red2}}>Diario di Sessione</span>
+        {isOwner&&<button onClick={()=>{setEditingNote(null);setNoteForm(EN);setShowNoteModal(true)}} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>+ Nuova</button>}
+      </div>
+      {notes.length===0&&<p style={{color:C.textMuted,fontStyle:'italic',textAlign:'center',padding:'40px 20px'}}>Il diario è vuoto...</p>}
+      {notes.map(n=>(
+        <Card key={n.id} style={{marginBottom:10,cursor:'pointer'}} onClick={()=>setExpandedNote(expandedNote===n.id?null:n.id)}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+            <div>
+              <span style={{fontWeight:700,fontSize:15,color:C.text,fontFamily:"'Cinzel',serif"}}>{n.session_title}</span>
+              {n.date&&<span style={{fontSize:12,color:C.red2,marginLeft:8}}>{n.date}</span>}
+            </div>
+            <div style={{display:'flex',gap:6,flexShrink:0}}>
+              {isOwner&&<>
+                <button onClick={e=>{e.stopPropagation();setEditingNote(n);setNoteForm({session_title:n.session_title,date:n.date||'',content:n.content||''});setShowNoteModal(true)}} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,padding:4,color:C.textDim}}>✏️</button>
+                <button onClick={e=>{e.stopPropagation();supabase.from('player_session_notes').delete().eq('id',n.id);setNotes(notes.filter(x=>x.id!==n.id))}} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,padding:4,color:C.textDim}}>🗑️</button>
+              </>}
+            </div>
+          </div>
+          {expandedNote===n.id&&<pre style={{margin:'10px 0 0',fontFamily:'inherit',fontSize:14,lineHeight:1.75,color:C.textDim,whiteSpace:'pre-wrap'}}>{n.content}</pre>}
+        </Card>
+      ))}
+      {showNoteModal&&<div onClick={()=>setShowNoteModal(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.88)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(4px)'}}>
+        <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,maxWidth:480,width:'92%',maxHeight:'88vh',overflowY:'auto'}}>
+          <div style={{padding:'18px 20px 14px',borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <span style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.red2}}>{editingNote?'Modifica':'Nuova Nota'}</span>
+            <button onClick={()=>setShowNoteModal(false)} style={{background:'none',border:'none',fontSize:20,color:C.textDim,cursor:'pointer'}}>✕</button>
+          </div>
+          <div style={{padding:'18px 20px'}}>
+            {[['Titolo','session_title'],['Data','date']].map(([l,k])=>(
+              <div key={k} style={{marginBottom:13}}>
+                <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>{l}</label>
+                <input value={noteForm[k]} onChange={e=>setNoteForm({...noteForm,[k]:e.target.value})} style={inp}/>
+              </div>
+            ))}
+            <div style={{marginBottom:13}}>
+              <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Note</label>
+              <textarea value={noteForm.content} onChange={e=>setNoteForm({...noteForm,content:e.target.value})} style={{...inp,minHeight:160,resize:'vertical'}}/>
+            </div>
+          </div>
+          <div style={{padding:'12px 20px 18px',display:'flex',gap:8,justifyContent:'flex-end',borderTop:`1px solid ${C.border}`}}>
+            <button onClick={()=>setShowNoteModal(false)} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:8,padding:'8px 16px',fontSize:13,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>Annulla</button>
+            <button onClick={saveNote} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'8px 16px',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>Salva</button>
+          </div>
+        </div>
+      </div>}
+    </div>}
+  </div>
+}
+
+// ── MAP SECTION ──
+function MapSection({isDM}){
+  const [pins,setPins]=useState([])
+  const [mapUrl,setMapUrl]=useState(null)
+  const [selected,setSelected]=useState(null)
+  const [showPinModal,setShowPinModal]=useState(false)
+  const [editingPin,setEditingPin]=useState(null)
+  const [pendingPos,setPendingPos]=useState(null)
+  const [uploading,setUploading]=useState(false)
+  const [loading,setLoading]=useState(true)
+  const imgRef=useRef()
+  const fileRef=useRef()
+
+  const PF={name:'',description:'',status:'sconosciuto'}
+  const [pinForm,setPinForm]=useState(PF)
+
+  const inp={width:'100%',boxSizing:'border-box',padding:'9px 12px',background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,fontSize:15,color:C.text,fontFamily:'inherit',outline:'none',marginTop:4}
+
+  useEffect(()=>{
+    supabase.from('map_pins').select('*').then(({data})=>setPins(data||[]))
+    supabase.from('map_config').select('map_path').eq('id',1).maybeSingle().then(({data})=>{
+      if(data?.map_path) setMapUrl(getPublicUrl('map-images',data.map_path)+'?t='+Date.now())
+      setLoading(false)
+    })
+  },[])
+
+  const uploadMap=async(e)=>{
+    const file=e.target.files[0]; if(!file) return
+    setUploading(true)
+    const ext=file.name.split('.').pop()
+    const path=`maps/map_${Date.now()}.${ext}`
+    const {error}=await supabase.storage.from('map-images').upload(path,file)
+    if(error){alert('Errore upload: '+error.message);setUploading(false);return}
+    await supabase.from('map_config').upsert({id:1,map_path:path,updated_at:new Date().toISOString()})
+    setMapUrl(getPublicUrl('map-images',path)+'?t='+Date.now())
+    setUploading(false)
+  }
+
+  const handleMapClick=e=>{
+    if(!isDM) return
+    const rect=e.currentTarget.getBoundingClientRect()
+    const x=Math.round(((e.clientX-rect.left)/rect.width)*100)
+    const y=Math.round(((e.clientY-rect.top)/rect.height)*100)
+    setPendingPos({x_percent:x,y_percent:y})
+    setEditingPin(null)
+    setPinForm(PF)
+    setShowPinModal(true)
+  }
+
+  const savePin=async()=>{
+    if(!pinForm.name) return
+    if(editingPin){
+      const {data}=await supabase.from('map_pins').update(pinForm).eq('id',editingPin.id).select()
+      if(data) setPins(pins.map(p=>p.id===editingPin.id?data[0]:p))
+    } else if(pendingPos){
+      const {data}=await supabase.from('map_pins').insert([{...pinForm,...pendingPos}]).select()
+      if(data) setPins([...pins,data[0]])
+    }
+    setShowPinModal(false); setPendingPos(null); setEditingPin(null)
+  }
+
+  const removePin=async(id)=>{
+    await supabase.from('map_pins').delete().eq('id',id)
+    setPins(pins.filter(p=>p.id!==id)); setSelected(null)
+  }
+
+  const pinColor=s=>({'visitato':'#2ecc71','noto':'#3498db','pericoloso':'#e74c3c'}[s]||C.textDim)
+
+  if(loading) return <div style={{textAlign:'center',padding:'60px 20px',color:C.textMuted}}>Caricamento...</div>
+
+  return <div>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+      <span style={{fontFamily:"'Cinzel',serif",fontSize:16,fontWeight:700,color:C.red2}}>Mappa</span>
+      {isDM&&<div style={{display:'flex',gap:8}}>
+        <button onClick={()=>fileRef.current.click()} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:8,padding:'6px 14px',fontSize:12,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>
+          {uploading?'Caricamento...':'⬆ Carica mappa'}
+        </button>
+        <input ref={fileRef} type="file" accept="image/*" style={{display:'none'}} onChange={uploadMap}/>
+      </div>}
+    </div>
+
+    {isDM&&mapUrl&&<p style={{fontSize:12,color:C.textMuted,marginBottom:10}}>Clicca sulla mappa per aggiungere un luogo.</p>}
+
+    <div style={{position:'relative',background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,overflow:'hidden',cursor:isDM?'crosshair':'default',minHeight:300}}>
+      {mapUrl
+        ?<div onClick={handleMapClick} ref={imgRef} style={{position:'relative'}}>
+          <img src={mapUrl} alt="Mappa" style={{width:'100%',height:'auto',display:'block',userSelect:'none',pointerEvents:'none'}}/>
+          <div style={{position:'absolute',inset:0}}>
+            {pins.map(pin=>(
+              <div key={pin.id} onClick={e=>{e.stopPropagation();setSelected(pin)}}
+                style={{position:'absolute',left:`${pin.x_percent}%`,top:`${pin.y_percent}%`,transform:'translate(-50%,-50%)',cursor:'pointer',zIndex:10}}>
+                <div style={{width:14,height:14,borderRadius:'50%',background:pinColor(pin.status),border:'2px solid rgba(10,10,15,.8)',boxShadow:`0 0 8px ${pinColor(pin.status)}`}}/>
+              </div>
+            ))}
+          </div>
+        </div>
+        :<div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'60px 20px',gap:12}}>
+          <div style={{fontSize:10,fontWeight:600,letterSpacing:'.15em',textTransform:'uppercase',color:C.textMuted}}>Nessuna mappa caricata</div>
+          {isDM&&<button onClick={()=>fileRef.current.click()} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'8px 18px',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>⬆ Carica mappa</button>}
+        </div>
+      }
+    </div>
+
+    {/* Pin detail */}
+    {selected&&<div onClick={()=>setSelected(null)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.7)',zIndex:200,display:'flex',alignItems:'flex-end',justifyContent:'center',backdropFilter:'blur(3px)'}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,borderRadius:'16px 16px 0 0',border:`1px solid ${C.border2}`,width:'100%',maxWidth:520,padding:'20px 20px 32px'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+          <span style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.red2}}>{selected.name}</span>
+          <button onClick={()=>setSelected(null)} style={{background:'none',border:'none',fontSize:22,color:C.textDim,cursor:'pointer'}}>✕</button>
+        </div>
+        <span style={{fontSize:10,fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',padding:'2px 8px',border:`1px solid ${pinColor(selected.status)}55`,borderRadius:4,color:pinColor(selected.status)}}>{selected.status}</span>
+        {selected.description&&<p style={{fontSize:14,color:C.textDim,lineHeight:1.7,marginTop:10}}>{selected.description}</p>}
+        {isDM&&<div style={{display:'flex',gap:8,marginTop:14}}>
+          <button onClick={()=>{setEditingPin(selected);setPinForm({name:selected.name,description:selected.description||'',status:selected.status});setShowPinModal(true);setSelected(null)}} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:8,padding:'8px 14px',fontSize:13,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>✏️ Modifica</button>
+          <button onClick={()=>removePin(selected.id)} style={{background:C.redDim+'33',border:`1px solid ${C.redDim}`,borderRadius:8,padding:'8px 14px',fontSize:13,cursor:'pointer',color:C.red2,fontFamily:'inherit'}}>🗑️ Elimina</button>
+        </div>}
+      </div>
+    </div>}
+
+    {/* Pin modal */}
+    {showPinModal&&<div onClick={()=>setShowPinModal(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.88)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(4px)'}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,maxWidth:440,width:'92%'}}>
+        <div style={{padding:'18px 20px 14px',borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <span style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.red2}}>{editingPin?'Modifica luogo':'Nuovo luogo'}</span>
+          <button onClick={()=>setShowPinModal(false)} style={{background:'none',border:'none',fontSize:20,color:C.textDim,cursor:'pointer'}}>✕</button>
+        </div>
+        <div style={{padding:'18px 20px'}}>
+          <div style={{marginBottom:13}}>
+            <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Nome</label>
+            <input value={pinForm.name} onChange={e=>setPinForm({...pinForm,name:e.target.value})} style={inp}/>
+          </div>
+          <div style={{marginBottom:13}}>
+            <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Stato</label>
+            <select value={pinForm.status} onChange={e=>setPinForm({...pinForm,status:e.target.value})} style={{...inp,cursor:'pointer'}}>
+              {['visitato','noto','sconosciuto','pericoloso'].map(s=><option key={s} style={{background:C.bg2}}>{s}</option>)}
+            </select>
+          </div>
+          <div style={{marginBottom:13}}>
+            <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Descrizione</label>
+            <textarea value={pinForm.description} onChange={e=>setPinForm({...pinForm,description:e.target.value})} style={{...inp,minHeight:80,resize:'vertical'}}/>
+          </div>
+        </div>
+        <div style={{padding:'12px 20px 18px',display:'flex',gap:8,justifyContent:'flex-end',borderTop:`1px solid ${C.border}`}}>
+          <button onClick={()=>setShowPinModal(false)} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:8,padding:'8px 16px',fontSize:13,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>Annulla</button>
+          <button onClick={savePin} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'8px 16px',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>Salva</button>
+        </div>
+      </div>
+    </div>}
+  </div>
+}
+
 // ── NPC SECTION ──
 const ATTITUDE_COLORS = { Alleato:'#2ecc71', Neutrale:'#8a7fa0', Nemico:'#e74c3c', Sconosciuto:'#c084fc' }
 const VITALITY_COLORS = { vivo:'#2ecc71', morto:'#e74c3c', sconosciuto:'#8a7fa0' }
@@ -682,14 +1309,17 @@ export default function App(){
           ))}
         </div>
 
+      case 'mappa': return <MapSection isDM={isDM} key="mappa"/>
+
       default:{
-        // Character view (minerva, talia, ecc.)
-        const char=characters.find(c=>c.name.toLowerCase()===view)
-        if(!char)return<Empty msg="Personaggio non trovato"/>
-        // Players can only see their own character
-        if(!isDM && profile?.character_name?.toLowerCase()!==view)
-          return<Empty msg="Accesso non autorizzato"/>
-        return <CharSheet char={char} isDM={isDM} onEdit={()=>openModal('characters',char)} onHpChange={handleHpChange}/>
+        const playerName = view
+        if(playerName==='minerva'||playerName==='talia'){
+          if(!isDM && profile?.character_name?.toLowerCase()!==playerName)
+            return<Empty msg="Accesso non autorizzato"/>
+          const playerProfile = [{name:'Minerva',color:'#c084fc'},{name:'Talia',color:'#fb923c'}].find(p=>p.name.toLowerCase()===playerName)
+          return <PlayerSheet playerName={playerName} playerColor={playerProfile?.color||C.red2} isOwner={isDM || profile?.character_name?.toLowerCase()===playerName}/>
+        }
+        return<Empty msg="Sezione non trovata"/>
       }
     }
   }
