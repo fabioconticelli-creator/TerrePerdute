@@ -1539,18 +1539,29 @@ export default function App(){
         </div>
 
       case 'cronologia':
-        if(!timeline.length)return<Empty msg="Nessun evento ancora"/>
-        return <div style={{position:'relative',paddingLeft:26}}>
-          <div style={{position:'absolute',left:5,top:0,bottom:0,width:1,background:`linear-gradient(to bottom,${C.redDim},transparent)`}}/>
-          {timeline.map(t=>(
-            <div key={t.id} style={{position:'relative',paddingLeft:16,paddingBottom:20}}>
-              <div style={{position:'absolute',left:-21,top:5,width:8,height:8,border:`1px solid ${C.redDim}`,background:C.bg,transform:'rotate(45deg)'}}/>
-              <div style={{fontSize:10,fontWeight:600,letterSpacing:'.15em',textTransform:'uppercase',color:C.redDim,marginBottom:3}}>{t.date}</div>
-              <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text,marginBottom:4}}>{t.title}</div>
-              <div style={{fontSize:13,color:C.textDim,fontStyle:'italic',lineHeight:1.55}}>{t.description}</div>
-              <EditBtns table="timeline" item={t}/>
-            </div>
-          ))}
+        if(!timeline.length&&!isDM)return<Empty msg="Nessun evento ancora"/>
+        return <div>
+          {isDM&&<div style={{display:'flex',justifyContent:'flex-end',marginBottom:14}}>
+            <button onClick={()=>openModal('timeline',null)} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>+ Aggiungi</button>
+          </div>}
+          {timeline.length===0&&<Empty msg="Nessun evento ancora"/>}
+          <div style={{position:'relative',paddingLeft:26}}>
+            <div style={{position:'absolute',left:5,top:0,bottom:0,width:1,background:`linear-gradient(to bottom,${C.redDim},transparent)`}}/>
+            {timeline.map(t=>{
+              const tImg=getPublicUrl('timeline-images',t.image_path)
+              return <div key={t.id} style={{position:'relative',paddingLeft:16,paddingBottom:24}}>
+                <div style={{position:'absolute',left:-21,top:5,width:8,height:8,border:`1px solid ${C.redDim}`,background:C.bg,transform:'rotate(45deg)'}}/>
+                <div style={{fontSize:10,fontWeight:600,letterSpacing:'.15em',textTransform:'uppercase',color:C.redDim,marginBottom:3}}>{t.date}</div>
+                <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text,marginBottom:6}}>{t.title}</div>
+                {tImg&&<img src={tImg} alt={t.title} style={{width:'100%',borderRadius:10,border:`1px solid ${C.border}`,marginBottom:8,display:'block',objectFit:'contain'}}/>}
+                <div style={{fontSize:13,color:C.textDim,fontStyle:'italic',lineHeight:1.65}}>{t.description}</div>
+                {isDM&&<div style={{display:'flex',gap:6,marginTop:8}}>
+                  <button onClick={()=>openModal('timeline',t)} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:6,padding:'4px 10px',fontSize:11,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>✏️</button>
+                  <button onClick={()=>deleteItem('timeline',t.id)} style={{background:'transparent',border:`1px solid ${C.redDim}`,borderRadius:6,padding:'4px 10px',fontSize:11,cursor:'pointer',color:C.red2,fontFamily:'inherit'}}>🗑️</button>
+                </div>}
+              </div>
+            })}
+          </div>
         </div>
 
       case 'arcano':
@@ -1746,6 +1757,7 @@ export default function App(){
       {/* MODAL */}
       {modal&&(
         <Modal title={modal.id?'Modifica':'Aggiungi'} onClose={()=>setModal(null)} onSave={saveModal}>
+          {modal.table==='timeline'&&<ImgUpload bucket="timeline-images" folder="timeline" currentPath={modalVals.image_path||''} onUploaded={p=>setModalVals(prev=>({...prev,image_path:p}))}/>}
           {(FIELDS[modal.table]||[]).map(f=>(
             <FormField
               key={f.id}
