@@ -1553,7 +1553,9 @@ export default function App(){
                 <div style={{position:'absolute',left:-21,top:5,width:8,height:8,border:`1px solid ${C.redDim}`,background:C.bg,transform:'rotate(45deg)'}}/>
                 <div style={{fontSize:10,fontWeight:600,letterSpacing:'.15em',textTransform:'uppercase',color:C.redDim,marginBottom:3}}>{t.date}</div>
                 <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text,marginBottom:6}}>{t.title}</div>
-                {tImg&&<img src={tImg} alt={t.title} style={{width:'100%',borderRadius:10,border:`1px solid ${C.border}`,marginBottom:8,display:'block',objectFit:'contain'}}/>}
+                {tImg&&<div style={{width:'100%',maxHeight:280,borderRadius:10,border:`1px solid ${C.border}`,marginBottom:8,overflow:'hidden'}}>
+                  <img src={tImg} alt={t.title} style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>
+                </div>}
                 <div style={{fontSize:13,color:C.textDim,fontStyle:'italic',lineHeight:1.65}}>{t.description}</div>
                 {isDM&&<div style={{display:'flex',gap:6,marginTop:8}}>
                   <button onClick={()=>openModal('timeline',t)} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:6,padding:'4px 10px',fontSize:11,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>✏️</button>
