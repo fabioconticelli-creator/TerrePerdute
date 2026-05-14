@@ -214,6 +214,137 @@ function CharSheet({char,isDM,onEdit,onHpChange}){
   )
 }
 
+// ── ORACLE ──
+function Oracle({npcs,timeline,factions}){
+  const [messages,setMessages]=useState([])
+  const [input,setInput]=useState('')
+  const [loading,setLoading]=useState(false)
+  const bottomRef=useRef()
+
+  useEffect(()=>{
+    bottomRef.current?.scrollIntoView({behavior:'smooth'})
+  },[messages])
+
+  const buildContext=()=>{
+    let ctx='Sei l\'Oracolo di House Valerius, un\'entità mistica e sapiente che conosce ogni segreto della campagna D&D "House Valerius". Rispondi in modo immersivo, evocativo e in italiano, come se fossi un antico oracolo che svela verità nascoste. Non uscire mai dal personaggio.\n\n'
+    if(npcs?.length){
+      ctx+='## PERSONAGGI DELLA CAMPAGNA\n'
+      npcs.forEach(n=>{
+        ctx+=`- **${n.name}** (${n.role||''}): ${n.attitude}, ${n.vitality||'vivo'}. ${n.description||''}\n`
+      })
+      ctx+='\n'
+    }
+    if(timeline?.length){
+      ctx+='## CRONOLOGIA DEGLI EVENTI\n'
+      timeline.forEach(t=>{
+        ctx+=`- [${t.date}] **${t.title}**: ${t.description||''}\n`
+      })
+      ctx+='\n'
+    }
+    if(factions?.length){
+      ctx+='## FAZIONI\n'
+      factions.forEach(f=>{
+        ctx+=`- **${f.name}**: ${f.description||''}\n`
+      })
+      ctx+='\n'
+    }
+    return ctx
+  }
+
+  const send=async()=>{
+    if(!input.trim()||loading) return
+    const userMsg={role:'user',content:input.trim()}
+    const newMessages=[...messages,userMsg]
+    setMessages(newMessages)
+    setInput('')
+    setLoading(true)
+
+    try {
+      const systemPrompt=buildContext()
+      const response=await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          model:'claude-sonnet-4-20250514',
+          max_tokens:1000,
+          system:systemPrompt,
+          messages:newMessages.map(m=>({role:m.role,content:m.content}))
+        })
+      })
+      const data=await response.json()
+      const reply=data.content?.[0]?.text||'L\'oracolo tace...'
+      setMessages(m=>[...m,{role:'assistant',content:reply}])
+    } catch(e){
+      setMessages(m=>[...m,{role:'assistant',content:'Le nebbie del destino avvolgono la risposta... Riprova tra poco.'}])
+    }
+    setLoading(false)
+  }
+
+  const handleKey=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}
+
+  return <div style={{maxWidth:600,margin:'0 auto',display:'flex',flexDirection:'column',height:'calc(100vh - 140px)'}}>
+    {/* Header */}
+    <div style={{textAlign:'center',marginBottom:16}}>
+      <div style={{fontSize:32,marginBottom:6}}>🔮</div>
+      <div style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.red2,letterSpacing:'.1em'}}>Oracolo di House Valerius</div>
+      <div style={{fontSize:12,color:C.textMuted,marginTop:4,fontStyle:'italic'}}>Interroga i misteri della campagna</div>
+    </div>
+
+    {/* Messages */}
+    <div style={{flex:1,overflowY:'auto',display:'flex',flexDirection:'column',gap:12,paddingBottom:12,scrollbarWidth:'thin'}}>
+      {messages.length===0&&<div style={{textAlign:'center',padding:'40px 20px'}}>
+        <div style={{fontSize:13,color:C.textMuted,fontStyle:'italic',lineHeight:1.8}}>
+          "Chi osa disturbare il silenzio dell'Oracolo?"<br/>
+          <span style={{fontSize:11,opacity:.6}}>Chiedi ciò che vuoi sapere sulla campagna...</span>
+        </div>
+        <div style={{display:'flex',flexWrap:'wrap',gap:8,justifyContent:'center',marginTop:20}}>
+          {['Chi è il personaggio più pericoloso?','Cosa sappiamo delle fazioni?','Racconta gli ultimi eventi','Quali segreti nasconde la campagna?'].map(s=>(
+            <button key={s} onClick={()=>setInput(s)} style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:20,padding:'6px 14px',fontSize:12,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>{s}</button>
+          ))}
+        </div>
+      </div>}
+      {messages.map((m,i)=>(
+        <div key={i} style={{display:'flex',justifyContent:m.role==='user'?'flex-end':'flex-start'}}>
+          {m.role==='assistant'&&<div style={{width:32,height:32,borderRadius:'50%',background:C.bg3,border:`1px solid ${C.red}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0,marginRight:8,alignSelf:'flex-end'}}>🔮</div>}
+          <div style={{
+            maxWidth:'80%',padding:'12px 16px',borderRadius:m.role==='user'?'18px 18px 4px 18px':'18px 18px 18px 4px',
+            background:m.role==='user'?C.red:C.bg2,
+            border:m.role==='user'?'none':`1px solid ${C.border2}`,
+            color:C.text,fontSize:14,lineHeight:1.75,
+            fontStyle:m.role==='assistant'?'italic':'normal'
+          }}>
+            {m.content}
+          </div>
+        </div>
+      ))}
+      {loading&&<div style={{display:'flex',alignItems:'center',gap:8}}>
+        <div style={{width:32,height:32,borderRadius:'50%',background:C.bg3,border:`1px solid ${C.red}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16}}>🔮</div>
+        <div style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:'18px 18px 18px 4px',padding:'12px 16px'}}>
+          <div style={{display:'flex',gap:4}}>
+            {[0,1,2].map(i=><div key={i} style={{width:6,height:6,borderRadius:'50%',background:C.red,animation:`pulse 1.2s ease-in-out ${i*0.2}s infinite`}}/>)}
+          </div>
+        </div>
+      </div>}
+      <div ref={bottomRef}/>
+    </div>
+
+    {/* Input */}
+    <div style={{display:'flex',gap:8,paddingTop:12,borderTop:`1px solid ${C.border}`}}>
+      <textarea
+        value={input}
+        onChange={e=>setInput(e.target.value)}
+        onKeyDown={handleKey}
+        placeholder="Interroga l'oracolo..."
+        rows={2}
+        style={{flex:1,padding:'10px 14px',background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:12,fontSize:14,color:C.text,fontFamily:'inherit',outline:'none',resize:'none',lineHeight:1.5}}
+      />
+      <button onClick={send} disabled={loading||!input.trim()} style={{width:44,borderRadius:12,background:input.trim()&&!loading?C.red:C.bg3,border:'none',color:'#fff',fontSize:18,cursor:input.trim()&&!loading?'pointer':'default',flexShrink:0,transition:'background .2s'}}>
+        ➤
+      </button>
+    </div>
+  </div>
+}
+
 // ── DICE ROLLER ──
 const DICE=[4,6,8,10,12,20,100]
 const DICE_COLORS={4:'#e74c3c',6:'#e67e22',8:'#f1c40f',10:'#2ecc71',12:'#3498db',20:'#9b59b6',100:'#e91e63'}
@@ -1612,6 +1743,8 @@ export default function App(){
           ))}
         </div>
 
+      case 'oracolo': return <Oracle npcs={npcs} timeline={timeline} factions={factions} key="oracolo"/>
+
       case 'dadi': return <DiceRoller key="dadi"/>
 
       case 'mappa': return <MapSection isDM={isDM} key="mappa"/>
@@ -1673,6 +1806,7 @@ export default function App(){
     {v:'fazioni',icon:'⚔️',l:'Fazioni'},
     {v:'cronologia',icon:'⏳',l:'Cronologia'},
     {v:'dadi',icon:'🎲',l:'Tira Dadi'},
+    {v:'oracolo',icon:'🔮',l:'Oracolo'},
   ]
 
   const playerColors={'minerva':'#c084fc','talia':'#fb923c'}
