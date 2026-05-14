@@ -226,7 +226,9 @@ function Oracle({npcs,timeline,factions}){
   },[messages])
 
   const buildContext=()=>{
-    let ctx='Sei l'Oracolo di House Valerius, un\\'entità mistica e sapiente che conosce ogni segreto della campagna D&D "House Valerius". Rispondi in modo immersivo, evocativo e in italiano, come se fossi un antico oracolo che svela verità nascoste. Non uscire mai dal personaggio.\\n\\n'
+    let ctx=`Sei l'Oracolo di House Valerius, un'entità mistica e sapiente che conosce ogni segreto della campagna D&D "House Valerius". Rispondi in modo immersivo, evocativo e in italiano, come se fossi un antico oracolo che svela verità nascoste. Non uscire mai dal personaggio.
+
+`
 
     if(npcs?.length){
       ctx+='## PERSONAGGI DELLA CAMPAGNA\\n'
