@@ -122,7 +122,7 @@ function NpcFormModal({npc, onClose, onSaved}){
       <label style={lbl}>Immagine</label>
       <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:8,alignItems:"center"}}>
         {imgPreview
-          ? <img src={imgPreview} style={{width:"100%",maxHeight:200,objectFit:"cover",borderRadius:10,border:`1px solid ${C.border2}`}}/>
+          ? <img src={imgPreview} style={{width:"100%",height:300,objectFit:"cover",objectPosition:"center top",borderRadius:10,border:`1px solid ${C.border2}`}}/>
           : <div style={{width:"100%",height:120,background:C.bg3,borderRadius:10,border:`2px dashed ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32}}>{vals.icon||"👤"}</div>
         }
         <label style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:"8px 16px",cursor:"pointer",fontSize:12,color:C.textDim,textAlign:"center",width:"100%",boxSizing:"border-box"}}>
