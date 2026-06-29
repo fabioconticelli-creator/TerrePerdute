@@ -73,9 +73,9 @@ function Modal({title,onClose,onSave,saving,children}){
 }
 
 function NpcFormModal({npc, onClose, onSaved}){
-  const [vals, setVals] = useState(npc || {name:"",role:"",icon:"👤",desc:"",primo:"",tag:"neutrale",stato:"vivo",img:""});
+  const [vals, setVals] = useState(npc || {name:"",role:"",icon:"👤",description:"",primo_incontro:"",attitude:"neutrale",stato:"vivo",img_url:""});
   const [imgFile, setImgFile] = useState(null);
-  const [imgPreview, setImgPreview] = useState(npc?.img||"");
+  const [imgPreview, setImgPreview] = useState(npc?.img_url||"");
   const [saving, setSaving] = useState(false);
 
   const handleFile = (e) => {
@@ -88,7 +88,7 @@ function NpcFormModal({npc, onClose, onSaved}){
   const save = async () => {
     setSaving(true);
     try {
-      let imgUrl = vals.img || "";
+      let imgUrl = vals.img_url || "";
       if(imgFile){
         const ext = imgFile.name.split(".").pop();
         const path = `${Date.now()}.${ext}`;
@@ -97,7 +97,7 @@ function NpcFormModal({npc, onClose, onSaved}){
         const {data:urlData} = supabase.storage.from("npc-images").getPublicUrl(path);
         imgUrl = urlData.publicUrl;
       }
-      const payload = {...vals, img: imgUrl};
+      const payload = {...vals, img_url: imgUrl};
       delete payload.id;
       let error;
       if(npc?.id){
@@ -122,21 +122,21 @@ function NpcFormModal({npc, onClose, onSaved}){
       <label style={lbl}>Immagine</label>
       <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:8,alignItems:"center"}}>
         {imgPreview
-          ? <img src={imgPreview} style={{width:"100%",height:300,objectFit:"cover",objectPosition:"center top",borderRadius:10,border:`1px solid ${C.border2}`}}/>
+          ? <img src={imgPreview} style={{width:"100%",maxHeight:200,objectFit:"cover",borderRadius:10,border:`1px solid ${C.border2}`}}/>
           : <div style={{width:"100%",height:120,background:C.bg3,borderRadius:10,border:`2px dashed ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32}}>{vals.icon||"👤"}</div>
         }
         <label style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:"8px 16px",cursor:"pointer",fontSize:12,color:C.textDim,textAlign:"center",width:"100%",boxSizing:"border-box"}}>
           📷 Scegli foto dal telefono
           <input type="file" accept="image/*" onChange={handleFile} style={{display:"none"}}/>
         </label>
-        {imgPreview && <button onClick={()=>{setImgFile(null);setImgPreview("");setVals(v=>({...v,img:""}));}} style={{fontSize:11,color:"#f87171",background:"none",border:"none",cursor:"pointer"}}>✕ Rimuovi immagine</button>}
+        {imgPreview && <button onClick={()=>{setImgFile(null);setImgPreview("");setVals(v=>({...v,img_url:""}));}} style={{fontSize:11,color:"#f87171",background:"none",border:"none",cursor:"pointer"}}>✕ Rimuovi immagine</button>}
       </div>
     </div>
     {[
       {id:"name",l:"Nome",ph:"Nome"},
       {id:"role",l:"Ruolo",ph:"es. Mercante"},
       {id:"icon",l:"Icona",ph:"👤"},
-      {id:"primo",l:"Primo incontro",ph:"es. Aldermoor"},
+      {id:"primo_incontro",l:"Primo incontro",ph:"es. Aldermoor"},
     ].map(f=>(
       <div key={f.id} style={{marginBottom:13}}>
         <label style={lbl}>{f.l}</label>
@@ -145,11 +145,11 @@ function NpcFormModal({npc, onClose, onSaved}){
     ))}
     <div style={{marginBottom:13}}>
       <label style={lbl}>Descrizione</label>
-      <textarea value={vals.desc||""} onChange={e=>setVals(v=>({...v,desc:e.target.value}))} placeholder="Chi è?" style={{...inp,minHeight:80,resize:"vertical"}}/>
+      <textarea value={vals.description||""} onChange={e=>setVals(v=>({...v,description:e.target.value}))} placeholder="Chi è?" style={{...inp,minHeight:80,resize:"vertical"}}/>
     </div>
     <div style={{marginBottom:13}}>
       <label style={lbl}>Relazione</label>
-      <select value={vals.tag||"neutrale"} onChange={e=>setVals(v=>({...v,tag:e.target.value}))} style={{...inp,cursor:"pointer"}}>
+      <select value={vals.attitude||"neutrale"} onChange={e=>setVals(v=>({...v,attitude:e.target.value}))} style={{...inp,cursor:"pointer"}}>
         {["neutrale","alleato","nemico","sconosciuto"].map(o=><option key={o} value={o} style={{background:C.bg2}}>{o}</option>)}
       </select>
     </div>
@@ -228,18 +228,18 @@ function NpcPanel({npc,onClose}){
       </div>
       <div style={{textAlign:"center",padding:"0 0 14px",color:C.goldDim,fontSize:12}}>✦</div>
       <div style={{padding:"0 20px 16px"}}>
-        {npc.img
-          ? <img src={npc.img} alt={npc.name} style={{width:"100%",aspectRatio:"2/3",borderRadius:12,border:`2px solid ${C.gold}`,objectFit:"cover",objectPosition:"center top",display:"block"}}/>
+        {npc.img_url
+          ? <img src={npc.img_url} alt={npc.name} style={{width:"100%",aspectRatio:"2/3",borderRadius:12,border:`2px solid ${C.gold}`,objectFit:"cover",objectPosition:"center top",display:"block"}}/>
           : <div style={{width:"100%",height:200,background:C.bg3,borderRadius:12,border:`1px solid ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:56}}>{npc.icon||"👤"}</div>
         }
       </div>
       <div style={{padding:"0 20px 32px"}}>
         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
-          {npc.tag&&<Tag t={npc.tag}/>}{npc.stato&&<Tag t={npc.stato}/>}
+          {npc.attitude&&<Tag t={npc.attitude}/>}{npc.stato&&<Tag t={npc.stato}/>}
         </div>
         {npc.role&&<div style={{fontSize:13,color:C.textDim,marginBottom:6,fontStyle:"italic"}}>{npc.role}</div>}
-        {npc.primo&&<div style={{fontSize:13,marginBottom:14}}><strong>Primo incontro:</strong> <span style={{color:C.gold}}>{npc.primo}</span></div>}
-        {npc.desc&&<div style={{fontSize:15,color:C.text,lineHeight:1.75}}>{npc.desc}</div>}
+        {npc.primo_incontro&&<div style={{fontSize:13,marginBottom:14}}><strong>Primo incontro:</strong> <span style={{color:C.gold}}>{npc.primo_incontro}</span></div>}
+        {npc.description&&<div style={{fontSize:15,color:C.text,lineHeight:1.75}}>{npc.description}</div>}
       </div>
     </div>
   </div>;
@@ -484,12 +484,12 @@ export default function App(){
           {data.npc.map((n,i)=>(
             <div key={n.id||i} style={{display:"flex",alignItems:"center",gap:12,background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",cursor:"pointer"}} onClick={()=>setNpcOpen(n)}>
               <div style={{width:48,height:48,borderRadius:10,background:C.bg3,border:`1px solid ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0,overflow:"hidden"}}>
-                {n.img?<img src={n.img} alt={n.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:(n.icon||"👤")}
+                {n.img_url?<img src={n.img_url} alt={n.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:(n.icon||"👤")}
               </div>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{n.name}</div>
                 <div style={{fontSize:12,color:C.textDim,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.role}</div>
-                <div style={{display:"flex",gap:5,marginTop:5,flexWrap:"wrap"}}>{n.tag&&<Tag t={n.tag}/>}{n.stato&&<Tag t={n.stato}/>}</div>
+                <div style={{display:"flex",gap:5,marginTop:5,flexWrap:"wrap"}}>{n.attitude&&<Tag t={n.attitude}/>}{n.stato&&<Tag t={n.stato}/>}</div>
               </div>
               {isAuth&&<div onClick={e=>{e.stopPropagation();}} style={{display:"flex",flexDirection:"column",gap:4}}>
                 <Btn onClick={()=>openNpcEdit(n)}>✏</Btn>
