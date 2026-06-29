@@ -362,12 +362,12 @@ const TABLE_MAP = {
   ]},
   gilda: { table:"factions", fields:[
     {id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"🏴"},
-    {id:"rank",l:"Rango",ph:"es. Fondatori"},{id:"desc",l:"Descrizione",ph:"...",ta:true},
+    {id:"rank",l:"Rango",ph:"es. Fondatori"},{id:"description",l:"Descrizione",ph:"...",ta:true},
     {id:"sede",l:"Sede",ph:"es. Porto di Arenmar"},{id:"influence",l:"Potere %",ph:"0-100"}
   ]},
   fazioni: { table:"factions", fields:[
     {id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"⚔️"},
-    {id:"desc",l:"Descrizione",ph:"...",ta:true},{id:"influence",l:"Influenza %",ph:"0-100"}
+    {id:"description",l:"Descrizione",ph:"...",ta:true},{id:"influence",l:"Influenza %",ph:"0-100"}
   ]},
   mondo: { table:"locations", fields:[
     {id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"🏰"},{id:"sub",l:"Descrizione",ph:"...",ta:true}
@@ -378,7 +378,7 @@ const TABLE_MAP = {
   ], hasImage:true, imageBucket:"timeline-images", imageField:"image_path"},
   arcano: { table:"arcane", fields:[
     {id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"✨"},
-    {id:"school",l:"Scuola",ph:"Proibito"},{id:"desc",l:"Descrizione",ph:"...",ta:true}
+    {id:"school",l:"Scuola",ph:"Proibito"},{id:"description",l:"Descrizione",ph:"...",ta:true}
   ]},
   tomo: { table:"tome", fields:[
     {id:"title",l:"Titolo",ph:"Segreto..."},{id:"text",l:"Contenuto",ph:"...",ta:true},
@@ -545,7 +545,7 @@ export default function App(){
               </div>
             </div>
             {g.sede&&<div style={{fontSize:12,color:C.textDim,marginBottom:6}}>📍 {g.sede}</div>}
-            {g.desc&&<div style={{fontSize:13,color:C.textDim,fontStyle:"italic",lineHeight:1.55,marginBottom:8}}>{g.desc}</div>}
+            {g.description&&<div style={{fontSize:13,color:C.textDim,fontStyle:"italic",lineHeight:1.55,marginBottom:8}}>{g.description}</div>}
             {g.influence!=null&&<><div style={{height:3,background:C.bg3,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${g.influence||0}%`,background:`linear-gradient(90deg,${C.goldDim},${C.gold})`}}/></div><div style={{fontSize:10,color:C.textMuted,marginTop:3}}>Potere: {g.influence||0}%</div></>}
             <EditBtns v="gilda" item={g}/>
           </div>
@@ -559,7 +559,7 @@ export default function App(){
               <div style={{width:44,height:44,background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{f.icon||"⚔️"}</div>
               <div style={{flex:1}}>
                 <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{f.name}</div>
-                <div style={{fontSize:12,color:C.textDim,fontStyle:"italic",margin:"3px 0 7px",lineHeight:1.5}}>{f.desc}</div>
+                <div style={{fontSize:12,color:C.textDim,fontStyle:"italic",margin:"3px 0 7px",lineHeight:1.5}}>{f.description}</div>
                 <div style={{height:3,background:C.bg3,borderRadius:2,overflow:"hidden",marginTop:6}}><div style={{height:"100%",width:`${f.influence||0}%`,background:`linear-gradient(90deg,${C.goldDim},${C.gold})`}}/></div>
                 <div style={{fontSize:10,color:C.textMuted,marginTop:3}}>Influenza: {f.influence||0}%</div>
                 <EditBtns v="fazioni" item={f}/>
@@ -604,7 +604,7 @@ export default function App(){
               <div style={{fontSize:28,marginBottom:8}}>{a.icon||"✨"}</div>
               <div style={{fontFamily:"'Cinzel',serif",fontSize:13,fontWeight:600,color:C.text,marginBottom:3}}>{a.name}</div>
               <div style={{fontSize:10,fontWeight:600,letterSpacing:".15em",textTransform:"uppercase",color:C.goldDim,marginBottom:7}}>{a.school}</div>
-              <div style={{fontSize:12,color:C.textDim,fontStyle:"italic",lineHeight:1.5}}>{a.desc}</div>
+              <div style={{fontSize:12,color:C.textDim,fontStyle:"italic",lineHeight:1.5}}>{a.description}</div>
               <EditBtns v="arcano" item={a}/>
             </div>
           ))}
