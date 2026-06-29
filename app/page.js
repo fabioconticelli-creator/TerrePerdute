@@ -185,7 +185,7 @@ function GenericModal({title, fields, vals, onClose, onSave, saving, onChange, h
       <label style={{display:"block",fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim}}>Immagine</label>
       <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:8}}>
         {imgPreview
-          ? <img src={imgPreview} style={{width:"100%",maxHeight:220,objectFit:"cover",borderRadius:10,border:`1px solid ${C.border2}`}}/>
+          ? <img src={imgPreview} style={{width:"100%",maxHeight:160,objectFit:"cover",borderRadius:10,border:`1px solid ${C.border2}`}}/>
           : <div style={{width:"100%",height:100,background:C.bg3,borderRadius:10,border:`2px dashed ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,color:C.textMuted}}>🖼️</div>
         }
         <label style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:"8px 16px",cursor:"pointer",fontSize:12,color:C.textDim,textAlign:"center",width:"100%",boxSizing:"border-box"}}>
