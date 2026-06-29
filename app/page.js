@@ -185,7 +185,7 @@ function GenericModal({title, fields, vals, onClose, onSave, saving, onChange, h
       <label style={{display:"block",fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim}}>Immagine</label>
       <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:8}}>
         {imgPreview
-          ? <img src={imgPreview} style={{width:"100%",maxHeight:160,objectFit:"cover",borderRadius:10,border:`1px solid ${C.border2}`}}/>
+          ? <img src={imgPreview} style={{width:"100%",maxHeight:220,objectFit:"cover",borderRadius:10,border:`1px solid ${C.border2}`}}/>
           : <div style={{width:"100%",height:100,background:C.bg3,borderRadius:10,border:`2px dashed ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,color:C.textMuted}}>🖼️</div>
         }
         <label style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:"8px 16px",cursor:"pointer",fontSize:12,color:C.textDim,textAlign:"center",width:"100%",boxSizing:"border-box"}}>
@@ -375,10 +375,7 @@ const TABLE_MAP = {
     {id:"date",l:"Data",ph:"Anno 1, Giorno X"},{id:"title",l:"Titolo",ph:"Evento..."},
     {id:"description",l:"Descrizione",ph:"Cosa accadde...",ta:true}
   ], hasImage:true, imageBucket:"timeline-images", imageField:"image_path"},
-  arcano: { table:"arcane", fields:[
-    {id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"✨"},
-    {id:"school",l:"Scuola",ph:"Proibito"},{id:"description",l:"Descrizione",ph:"...",ta:true}
-  ]},
+
   tomo: { table:"tome", fields:[
     {id:"title",l:"Titolo",ph:"Segreto..."},{id:"text",l:"Contenuto",ph:"...",ta:true},
     {id:"locked",l:"Bloccato?",sel:["false","true"]}
@@ -386,9 +383,9 @@ const TABLE_MAP = {
 };
 
 export default function App(){
-  const [data,setData]=useState({sessioni:[],npc:[],gilda:[],fazioni:[],mondo:[],cronologia:[],arcano:[],tomo:[],party:[]});
+  const [data,setData]=useState({sessioni:[],npc:[],gilda:[],fazioni:[],mondo:[],cronologia:[],tomo:[],map_pins:[],map_config:null});
   const [loading,setLoading]=useState(true);
-  const [view,setView]=useState("sessioni");
+  const [view,setView]=useState("mondo");
   const [isAuth,setIsAuth]=useState(false);
   const [sidebarOpen,setSidebarOpen]=useState(false);
   const [showPin,setShowPin]=useState(false);
@@ -398,21 +395,26 @@ export default function App(){
   const [genericModal,setGenericModal]=useState(null); // {view, item}
   const [genericVals,setGenericVals]=useState({});
   const [saving,setSaving]=useState(false);
+  const [pinModal,setPinModal]=useState(null);
+  const [pinVals,setPinVals]=useState({});
+  const [mapUploading,setMapUploading]=useState(false);
+  const [pendingPin,setPendingPin]=useState(false);
 
-  const TITLES={sessioni:"Sessioni",npc:"NPC",mappa:"Mappa",gilda:"Gilda",fazioni:"Fazioni",mondo:"Fogli del Mondo",cronologia:"Cronologia",arcano:"Compendio Arcano",party:"Party",tomo:"Tomo Segreto"};
+  const TITLES={sessioni:"Sessioni",npc:"NPC",mappa:"Mappa",gilda:"Gilda",fazioni:"Fazioni",mondo:"Fogli del Mondo",cronologia:"Cronologia",tomo:"Tomo Segreto"};
 
   // ── LOAD DATA ──
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [npcs, sessions, factions, locations, timeline, arcane, tome] = await Promise.all([
+      const [npcs, sessions, factions, locations, timeline, tome, map_pins, map_config] = await Promise.all([
         supabase.from("npcs").select("*").order("created_at",{ascending:false}),
         supabase.from("sessions").select("*").order("created_at",{ascending:false}),
         supabase.from("factions").select("*").order("created_at",{ascending:false}),
         supabase.from("locations").select("*").order("created_at",{ascending:false}),
         supabase.from("timeline").select("*").order("created_at",{ascending:false}),
-        supabase.from("arcane").select("*").order("created_at",{ascending:false}),
         supabase.from("tome").select("*").order("created_at",{ascending:false}),
+        supabase.from("map_pins").select("*").order("created_at",{ascending:false}),
+        supabase.from("map_config").select("*").limit(1),
       ]);
       setData(d=>({...d,
         npc: npcs.data||[],
@@ -421,14 +423,16 @@ export default function App(){
         fazioni: factions.data||[],
         mondo: locations.data||[],
         cronologia: timeline.data||[],
-        arcano: arcane.data||[],
         tomo: tome.data||[],
+        map_pins: map_pins.data||[],
+        map_config: map_config.data?.[0]||null,
       }));
     } catch(e){ console.error(e); }
     setLoading(false);
   };
 
-useEffect(()=>{ loadAll(); const interval=setInterval(loadAll,30000); return ()=>clearInterval(interval); },[]);
+  useEffect(()=>{ loadAll(); },[]);
+
   const nav=(v)=>{setView(v);setSidebarOpen(false);};
   const toggleDm=()=>{ if(isAuth){setIsAuth(false);}else{setShowPin(true);} };
 
@@ -596,20 +600,8 @@ useEffect(()=>{ loadAll(); const interval=setInterval(loadAll,30000); return ()=
           ))}
         </div>;
 
-      case "arcano": return !data.arcano.length?<EmptyState msg="Nessun elemento arcano ancora"/>:
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12}}>
-          {data.arcano.map((a,i)=>(
-            <div key={a.id||i} style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:16,textAlign:"center"}}>
-              <div style={{fontSize:28,marginBottom:8}}>{a.icon||"✨"}</div>
-              <div style={{fontFamily:"'Cinzel',serif",fontSize:13,fontWeight:600,color:C.text,marginBottom:3}}>{a.name}</div>
-              <div style={{fontSize:10,fontWeight:600,letterSpacing:".15em",textTransform:"uppercase",color:C.goldDim,marginBottom:7}}>{a.school}</div>
-              <div style={{fontSize:12,color:C.textDim,fontStyle:"italic",lineHeight:1.5}}>{a.description}</div>
-              <EditBtns v="arcano" item={a}/>
-            </div>
-          ))}
-        </div>;
 
-      case "party": return <EmptyState msg="Nessun personaggio ancora"/>;
+
 
       case "tomo": return <div>
         <div style={{textAlign:"center",padding:"16px 0 24px"}}>
@@ -630,11 +622,10 @@ useEffect(()=>{ loadAll(); const interval=setInterval(loadAll,30000); return ()=
   };
 
   const navItems=[
-    {v:"sessioni",icon:"📜",label:"Sessioni"},{v:"npc",icon:"👤",label:"NPC"},
-    {v:"mappa",icon:"🗺️",label:"Mappa"},{v:"gilda",icon:"🏴",label:"Gilda"},
-    {v:"fazioni",icon:"⚔️",label:"Fazioni"},{v:"mondo",icon:"🌍",label:"Fogli del Mondo"},
-    {v:"cronologia",icon:"⏳",label:"Cronologia"},{v:"arcano",icon:"✨",label:"Compendio Arcano"},
-    {v:"party",icon:"🛡️",label:"Party"},
+    {v:"sessioni",icon:"📜",label:"Sessioni"},{v:"cronologia",icon:"⏳",label:"Cronologia"},
+    {v:"gilda",icon:"🏴",label:"Gilda"},{v:"fazioni",icon:"⚔️",label:"Fazioni"},
+    {v:"npc",icon:"👤",label:"NPC"},{v:"mondo",icon:"🌍",label:"Fogli del Mondo"},
+    {v:"mappa",icon:"🗺️",label:"Mappa"},
   ];
 
   return <div style={{display:"flex",height:"100vh",overflow:"hidden",background:C.bg,color:C.text,fontFamily:"'Inter',sans-serif"}}>
@@ -685,6 +676,49 @@ useEffect(()=>{ loadAll(); const interval=setInterval(loadAll,30000); return ()=
     </div>
 
     <NpcPanel npc={npcOpen} onClose={()=>setNpcOpen(null)}/>
+    {pinModal?.view==="pin_detail"&&pinModal.item&&<div onClick={()=>setPinModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.8)",zIndex:300,display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(4px)"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:"20px 20px 0 0",width:"100%",maxWidth:640,padding:"20px 20px 32px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <span style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.gold}}>{pinModal.item.name}</span>
+          <button onClick={()=>setPinModal(null)} style={{background:"none",border:"none",fontSize:22,color:C.textDim,cursor:"pointer"}}>✕</button>
+        </div>
+        {pinModal.item.status&&<Tag t={pinModal.item.status}/>}
+        {pinModal.item.description&&<div style={{fontSize:14,color:C.textDim,lineHeight:1.75,marginTop:10}}>{pinModal.item.description}</div>}
+        {isAuth&&<div style={{display:"flex",gap:8,marginTop:16}}>
+          <Btn onClick={()=>{setPinVals({...pinModal.item});setPinModal({item:pinModal.item,view:"pin_form"});}}>✏ Modifica</Btn>
+          <Btn onClick={async()=>{if(!window.confirm("Eliminare?"))return;await supabase.from("map_pins").delete().eq("id",pinModal.item.id);setPinModal(null);loadAll();}}>✕ Elimina</Btn>
+        </div>}
+      </div>
+    </div>}
+    {pinModal?.view==="pin_form"&&<div onClick={()=>setPinModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.88)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,maxWidth:440,width:"92%",padding:20,boxShadow:`0 0 40px ${C.goldGlow}`}}>
+        <div style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.gold,marginBottom:16}}>{pinModal.item?"Modifica Pin":"Nuovo Pin"}</div>
+        {[{id:"name",l:"Nome",ph:"Es. Città di Arenmar"},{id:"description",l:"Descrizione",ph:"...",ta:true}].map(f=>(
+          <div key={f.id} style={{marginBottom:12}}>
+            <label style={{display:"block",fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim}}>{f.l}</label>
+            {f.ta
+              ?<textarea value={pinVals[f.id]||""} onChange={e=>setPinVals(v=>({...v,[f.id]:e.target.value}))} placeholder={f.ph} style={{width:"100%",background:C.bg,border:`1px solid ${C.border2}`,borderRadius:8,color:C.text,fontFamily:"inherit",fontSize:14,padding:"8px 12px",outline:"none",marginTop:4,minHeight:80,resize:"vertical",boxSizing:"border-box"}}/>
+              :<input value={pinVals[f.id]||""} onChange={e=>setPinVals(v=>({...v,[f.id]:e.target.value}))} placeholder={f.ph} style={{width:"100%",background:C.bg,border:`1px solid ${C.border2}`,borderRadius:8,color:C.text,fontFamily:"inherit",fontSize:14,padding:"8px 12px",outline:"none",marginTop:4,boxSizing:"border-box"}}/>
+            }
+          </div>
+        ))}
+        <div style={{marginBottom:16}}>
+          <label style={{display:"block",fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim}}>Stato</label>
+          <select value={pinVals.status||"neutrale"} onChange={e=>setPinVals(v=>({...v,status:e.target.value}))} style={{width:"100%",background:C.bg,border:`1px solid ${C.border2}`,borderRadius:8,color:C.text,fontFamily:"inherit",fontSize:14,padding:"8px 12px",outline:"none",marginTop:4,cursor:"pointer"}}>
+            {["neutrale","alleato","nemico","sconosciuto"].map(o=><option key={o} value={o} style={{background:C.bg2}}>{o}</option>)}
+          </select>
+        </div>
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+          <Btn onClick={()=>setPinModal(null)}>Annulla</Btn>
+          <Btn primary onClick={async()=>{
+            const obj={name:pinVals.name,description:pinVals.description,status:pinVals.status,x_percent:parseFloat(pinVals.x_percent)||0,y_percent:parseFloat(pinVals.y_percent)||0};
+            if(pinModal.item?.id){await supabase.from("map_pins").update(obj).eq("id",pinModal.item.id);}
+            else{await supabase.from("map_pins").insert(obj);}
+            setPinModal(null);loadAll();
+          }}>Salva</Btn>
+        </div>
+      </div>
+    </div>}
     {showPin&&<PinModal onSuccess={()=>{setIsAuth(true);setShowPin(false);}} onClose={()=>setShowPin(false)}/>}
     {npcModal&&<NpcFormModal npc={npcModal?.id?npcModal:null} onClose={()=>setNpcModal(null)} onSaved={()=>{setNpcModal(null);loadAll();}}/>}
     {genericModal&&<GenericModal
