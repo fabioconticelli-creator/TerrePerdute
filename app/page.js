@@ -174,10 +174,9 @@ function GenericModal({title, fields, vals, onClose, onSave, saving, onChange, h
       const {error:upErr} = await supabase.storage.from(imageBucket).upload(path, imgFile, {upsert:true});
       if(upErr){ alert("Errore upload: "+upErr.message); return; }
       const {data:urlData} = supabase.storage.from(imageBucket).getPublicUrl(path);
-      onChange(imageField, urlData.publicUrl);
-      setTimeout(()=>onSave(), 100);
+      onSave(urlData.publicUrl, imageField);
     } else {
-      onSave();
+      onSave(null, null);
     }
   };
 
@@ -453,13 +452,14 @@ export default function App(){
     setGenericVals({...item});
     setGenericModal({view:v, item});
   };
-  const saveGeneric = async () => {
+  const saveGeneric = async (imgUrl=null, imgField=null) => {
     if(!genericModal)return;
     setSaving(true);
     const cfg = TABLE_MAP[genericModal.view];
     if(!cfg){setSaving(false);return;}
     const numFields=["influence","hp","hpMax","ca","livello","for","des","cos","int","sag","car"];
     const obj={...genericVals};
+    if(imgUrl && imgField) obj[imgField] = imgUrl;
     numFields.forEach(f=>{ if(obj[f]!==undefined) obj[f]=parseInt(obj[f])||0; });
     if(obj.locked!==undefined) obj.locked=obj.locked==="true"||obj.locked===true;
     delete obj.id; delete obj.created_at;
