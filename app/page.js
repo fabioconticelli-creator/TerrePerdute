@@ -28,10 +28,10 @@ const ABILITA = [
 const mod = v => Math.floor(((v||10)-10)/2);
 const fmtMod = v => (v>=0?"+":"")+v;
 const tagColor = t => ({
-  alleato:{border:"#1a4a2e",color:"#4ade80"},
-  neutrale:{border:"#4a3800",color:"#fbbf24"},
-  nemico:{border:"#4a1010",color:"#f87171"},
-  sconosciuto:{border:"#1a2a4a",color:"#60a5fa"},
+  Alleato:{border:"#1a4a2e",color:"#4ade80"},
+  Neutrale:{border:"#4a3800",color:"#fbbf24"},
+  Nemico:{border:"#4a1010",color:"#f87171"},
+  Sconosciuto:{border:"#1a2a4a",color:"#60a5fa"},
   vivo:{border:"#1a4a2e",color:"#4ade80"},
   morto:{border:"#4a1010",color:"#f87171"},
 }[t]||{border:C.border2,color:C.textDim});
@@ -73,7 +73,7 @@ function Modal({title,onClose,onSave,saving,children}){
 }
 
 function NpcFormModal({npc, onClose, onSaved}){
-  const [vals, setVals] = useState(npc || {name:"",role:"",icon:"👤",description:"",primo_incontro:"",attitude:"neutrale",stato:"vivo",img_url:""});
+  const [vals, setVals] = useState(npc || {name:"",role:"",icon:"👤",description:"",primo_incontro:"",attitude:"Neutrale",stato:"vivo",img_url:""});
   const [imgFile, setImgFile] = useState(null);
   const [imgPreview, setImgPreview] = useState(npc?.img_url||"");
   const [saving, setSaving] = useState(false);
@@ -150,7 +150,7 @@ function NpcFormModal({npc, onClose, onSaved}){
     <div style={{marginBottom:13}}>
       <label style={lbl}>Relazione</label>
       <select value={vals.attitude||"neutrale"} onChange={e=>setVals(v=>({...v,attitude:e.target.value}))} style={{...inp,cursor:"pointer"}}>
-        {["neutrale","alleato","nemico","sconosciuto"].map(o=><option key={o} value={o} style={{background:C.bg2}}>{o}</option>)}
+        {["Neutrale","Alleato","Nemico","Sconosciuto"].map(o=><option key={o} value={o} style={{background:C.bg2}}>{o}</option>)}
       </select>
     </div>
     <div style={{marginBottom:13}}>
