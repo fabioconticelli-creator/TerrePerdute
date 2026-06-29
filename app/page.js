@@ -617,6 +617,89 @@ export default function App(){
         ))}
       </div>;
 
+      case "mappa": {
+        const mapImg = data.map_config?.map_path;
+        return <div>
+          <div style={{position:"relative",background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden",marginBottom:12}}>
+            {mapImg
+              ? <div style={{position:"relative"}}>
+                  <img src={mapImg} style={{width:"100%",display:"block",borderRadius:12,maxHeight:520,objectFit:"contain"}}/>
+                  {data.map_pins.map((pin,i)=>(
+                    <div key={pin.id||i}
+                      onClick={()=>setPinModal({item:pin,view:"pin_detail"})}
+                      style={{position:"absolute",left:`${pin.x_percent}%`,top:`${pin.y_percent}%`,transform:"translate(-50%,-50%)",cursor:"pointer",zIndex:10}}>
+                      <div style={{width:18,height:18,borderRadius:"50%",background:pin.status==="nemico"?"#f87171":pin.status==="alleato"?"#4ade80":C.gold,border:"2px solid #fff",boxShadow:"0 0 8px rgba(0,0,0,.6)"}}/>
+                      <div style={{position:"absolute",bottom:"calc(100% + 4px)",left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,.85)",color:"#fff",fontSize:10,fontWeight:600,padding:"2px 6px",borderRadius:4,whiteSpace:"nowrap"}}>{pin.name}</div>
+                    </div>
+                  ))}
+                  {pendingPin&&<div style={{position:"absolute",inset:0,cursor:"crosshair",zIndex:21}} onClick={e=>{
+                    const rect=e.currentTarget.getBoundingClientRect();
+                    const x=((e.clientX-rect.left)/rect.width*100).toFixed(1);
+                    const y=((e.clientY-rect.top)/rect.height*100).toFixed(1);
+                    setPinVals({x_percent:x,y_percent:y,name:"",description:"",status:"neutrale"});
+                    setPendingPin(false);
+                    setPinModal({item:null,view:"pin_form"});
+                  }}/>}
+                  {pendingPin&&<div style={{position:"absolute",inset:0,background:"rgba(212,160,23,.08)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:20,pointerEvents:"none"}}>
+                    <div style={{background:"rgba(0,0,0,.8)",color:C.gold,padding:"10px 20px",borderRadius:10,fontSize:13,fontWeight:600}}>Clicca sulla mappa per posizionare il pin</div>
+                  </div>}
+                </div>
+              : <div style={{height:300,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
+                  <div style={{fontSize:40,opacity:.3}}>🗺️</div>
+                  <div style={{fontSize:13,color:C.textMuted}}>Nessuna mappa caricata</div>
+                  {isAuth&&<label style={{background:C.gold,color:"#0b1120",fontWeight:600,fontSize:12,padding:"8px 18px",borderRadius:8,cursor:"pointer"}}>
+                    📷 Carica mappa
+                    <input type="file" accept="image/*" onChange={async e=>{
+                      const f=e.target.files[0]; if(!f)return;
+                      setMapUploading(true);
+                      const path=`maps/${Date.now()}.${f.name.split(".").pop()}`;
+                      const {error:upErr}=await supabase.storage.from("map-images").upload(path,f,{upsert:true});
+                      if(upErr){alert("Errore: "+upErr.message);setMapUploading(false);return;}
+                      const {data:urlData}=supabase.storage.from("map-images").getPublicUrl(path);
+                      await supabase.from("map_config").upsert({id:1,map_path:urlData.publicUrl});
+                      setMapUploading(false);
+                      loadAll();
+                    }} style={{display:"none"}}/>
+                  </label>}
+                  {mapUploading&&<div style={{fontSize:12,color:C.gold}}>Caricamento...</div>}
+                </div>
+            }
+          </div>
+          {isAuth&&<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            {mapImg&&<label style={{background:C.bg2,border:`1px solid ${C.border2}`,color:C.textDim,fontWeight:600,fontSize:12,padding:"7px 14px",borderRadius:8,cursor:"pointer"}}>
+              🗺️ Cambia mappa
+              <input type="file" accept="image/*" onChange={async e=>{
+                const f=e.target.files[0]; if(!f)return;
+                setMapUploading(true);
+                const path=`maps/${Date.now()}.${f.name.split(".").pop()}`;
+                const {error:upErr}=await supabase.storage.from("map-images").upload(path,f,{upsert:true});
+                if(upErr){alert("Errore: "+upErr.message);setMapUploading(false);return;}
+                const {data:urlData}=supabase.storage.from("map-images").getPublicUrl(path);
+                await supabase.from("map_config").upsert({id:1,map_path:urlData.publicUrl});
+                setMapUploading(false);
+                loadAll();
+              }} style={{display:"none"}}/>
+            </label>}
+            {!mapImg&&<label style={{background:C.gold,color:"#0b1120",fontWeight:600,fontSize:12,padding:"7px 14px",borderRadius:8,cursor:"pointer"}}>
+              📷 Carica mappa
+              <input type="file" accept="image/*" onChange={async e=>{
+                const f=e.target.files[0]; if(!f)return;
+                setMapUploading(true);
+                const path=`maps/${Date.now()}.${f.name.split(".").pop()}`;
+                const {error:upErr}=await supabase.storage.from("map-images").upload(path,f,{upsert:true});
+                if(upErr){alert("Errore: "+upErr.message);setMapUploading(false);return;}
+                const {data:urlData}=supabase.storage.from("map-images").getPublicUrl(path);
+                await supabase.from("map_config").upsert({id:1,map_path:urlData.publicUrl});
+                setMapUploading(false);
+                loadAll();
+              }} style={{display:"none"}}/>
+            </label>}
+            {mapImg&&<Btn primary onClick={()=>setPendingPin(true)}>+ Aggiungi Pin</Btn>}
+          </div>}
+          {mapUploading&&<div style={{fontSize:12,color:C.gold,marginTop:8}}>Caricamento in corso...</div>}
+        </div>;
+      }
+
       default: return <EmptyState msg="In costruzione"/>;
     }
   };
