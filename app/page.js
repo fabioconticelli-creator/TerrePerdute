@@ -1,1968 +1,544 @@
-'use client'
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
-import { useRouter } from 'next/navigation'
+import { useState, useCallback } from "react";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
-function getPublicUrl(bucket, path){ if(!path) return null; return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}` }
-async function uploadImage(bucket, file, folder){ const ext=file.name.split('.').pop(); const path=`${folder}/${Date.now()}.${ext}`; const {error}=await supabase.storage.from(bucket).upload(path,file); if(error) return null; return path }
+const DM_PIN = "1234";
 
 const C = {
-  bg:'#0e0b14',bg2:'#13101a',bg3:'#1a1624',bg4:'#201c2e',
-  border:'#2a2040',border2:'#332848',
-  red:'#c0392b',red2:'#e74c3c',redDim:'#7a1a1a',
-  text:'#e8e0f0',textDim:'#8a7fa0',textMuted:'#4a4060',
-  green:'#22c55e',yellow:'#eab308',
-}
+  bg:"#0e0b14", bg2:"#13101a", bg3:"#1a1624", bg4:"#201c2e",
+  panel:"#110e18", border:"#2a2040", border2:"#332848",
+  red:"#c0392b", red2:"#e74c3c", redDim:"#7a1a1a",
+  text:"#e8e0f0", textDim:"#8a7fa0", textMuted:"#4a4060",
+  green:"#22c55e", yellow:"#eab308",
+};
 
-const mod = v => Math.floor(((v||10)-10)/2)
-const fmt = v => (v>=0?'+':'')+v
+const initialData = {
+  sessioni:[], npc:[], fazioni:[], mondo:[], cronologia:[], arcano:[], tomo:[],
+  party:[
+    {name:"Minerva", sub:"· Livello 1", color:"#c084fc", icon:"🔮", ca:0, livello:1, background:"", hp:0, hpMax:0, for:10, des:10, cos:10, int:10, sag:10, car:10, note:"", inventario:[], incantesimi:[], famigli:""},
+    {name:"Talia",   sub:"· Livello 1", color:"#fb923c", icon:"⚔️",  ca:0, livello:1, background:"", hp:0, hpMax:0, for:10, des:10, cos:10, int:10, sag:10, car:10, note:"", inventario:[], incantesimi:[], famigli:""},
+  ],
+};
 
+const ABILITA = [
+  {n:"Acrobazia",s:"des"},{n:"Addestrare animali",s:"sag"},{n:"Arcano",s:"int"},
+  {n:"Atletica",s:"for"},{n:"Furtività",s:"des"},{n:"Indagare",s:"int"},
+  {n:"Inganno",s:"car"},{n:"Intimidire",s:"car"},{n:"Intuizione",s:"sag"},
+  {n:"Medicina",s:"sag"},{n:"Natura",s:"int"},{n:"Percezione",s:"sag"},
+  {n:"Performance",s:"car"},{n:"Persuasione",s:"car"},{n:"Rapidità di mano",s:"des"},
+  {n:"Religione",s:"int"},{n:"Sopravvivenza",s:"sag"},{n:"Storia",s:"int"},
+];
+
+const FIELDS = {
+  sessioni:[{id:"num",l:"Numero",ph:"es. I"},{id:"title",l:"Titolo",ph:"Titolo..."},{id:"date",l:"Data",ph:"es. 1 Gen 2025"},{id:"excerpt",l:"Riassunto",ph:"Cosa è successo...",ta:true}],
+  npc:[{id:"name",l:"Nome",ph:"Nome"},{id:"role",l:"Ruolo",ph:"es. Mercante"},{id:"icon",l:"Icona",ph:"👤"},{id:"desc",l:"Descrizione",ph:"Chi è?",ta:true},{id:"primo",l:"Primo incontro",ph:"es. Aldermoor"},{id:"img",l:"URL Immagine",ph:"https://..."},{id:"tag",l:"Relazione",sel:["neutrale","alleato","nemico","sconosciuto"]},{id:"stato",l:"Stato",sel:["vivo","morto",""]}],
+  fazioni:[{id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"⚔️"},{id:"desc",l:"Descrizione",ph:"...",ta:true},{id:"influence",l:"Influenza %",ph:"0-100"}],
+  mondo:[{id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"🏰"},{id:"sub",l:"Descrizione",ph:"...",ta:true}],
+  cronologia:[{id:"date",l:"Data",ph:"Anno 1, Giorno X"},{id:"title",l:"Titolo",ph:"Evento..."},{id:"desc",l:"Descrizione",ph:"Cosa accadde...",ta:true}],
+  arcano:[{id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"✨"},{id:"school",l:"Scuola",ph:"Proibito"},{id:"desc",l:"Descrizione",ph:"...",ta:true}],
+  party:[{id:"name",l:"Nome",ph:"Nome"},{id:"sub",l:"Classe",ph:"Guerriero · Lv 1"},{id:"icon",l:"Icona",ph:"🛡️"},{id:"color",l:"Colore",ph:"#c084fc"},{id:"ca",l:"CA",ph:"15"},{id:"livello",l:"Livello",ph:"1"},{id:"background",l:"Background",ph:"Soldato"},{id:"hp",l:"HP Attuali",ph:"0"},{id:"hpMax",l:"HP Massimi",ph:"10"},{id:"for",l:"Forza",ph:"10"},{id:"des",l:"Destrezza",ph:"10"},{id:"cos",l:"Costituzione",ph:"10"},{id:"int",l:"Intelligenza",ph:"10"},{id:"sag",l:"Saggezza",ph:"10"},{id:"car",l:"Carisma",ph:"10"},{id:"note",l:"Note",ph:"...",ta:true}],
+  tomo:[{id:"title",l:"Titolo",ph:"Segreto..."},{id:"text",l:"Contenuto",ph:"...",ta:true},{id:"locked",l:"Bloccato?",sel:["false","true"]}],
+};
+
+const mod = v => Math.floor(((v||10)-10)/2);
+const fmtMod = v => (v>=0?"+":"")+v;
 const tagColor = t => ({
-  Alleato:{border:'#166534',color:'#4ade80'},
-  Neutrale:{border:'#713f12',color:'#fbbf24'},
-  Nemico:{border:'#7f1d1d',color:'#f87171'},
-  Sconosciuto:{border:'#1e3a5f',color:'#60a5fa'},
-  vivo:{border:'#166534',color:'#4ade80'},
-  morto:{border:'#7f1d1d',color:'#f87171'},
-}[t]||{border:C.border2,color:C.textDim})
+  alleato:{border:"#166534",color:"#4ade80"},
+  neutrale:{border:"#713f12",color:"#fbbf24"},
+  nemico:{border:"#7f1d1d",color:"#f87171"},
+  sconosciuto:{border:"#1e3a5f",color:"#60a5fa"},
+  vivo:{border:"#166534",color:"#4ade80"},
+  morto:{border:"#7f1d1d",color:"#f87171"},
+}[t]||{border:C.border2,color:C.textDim});
 
 function Tag({t}){
-  const s=tagColor(t)
-  return <span style={{fontSize:10,fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',padding:'2px 8px',border:`1px solid ${s.border}`,borderRadius:5,color:s.color}}>{t}</span>
+  const s=tagColor(t);
+  return <span style={{fontSize:10,fontWeight:600,letterSpacing:".1em",textTransform:"uppercase",padding:"2px 8px",border:`1px solid ${s.border}`,borderRadius:5,color:s.color}}>{t}</span>;
+}
+
+function Btn({children,onClick,style={},primary=false}){
+  return <button onClick={onClick} style={{fontFamily:"inherit",fontSize:12,fontWeight:600,padding:"7px 14px",borderRadius:8,border:primary?"none":`1px solid ${C.border2}`,background:primary?C.red:"transparent",color:primary?"#fff":C.textDim,cursor:"pointer",...style}}>{children}</button>;
 }
 
 function Card({children,style={}}){
-  return <div style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:14,...style}}>{children}</div>
+  return <div style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:14,...style}}>{children}</div>;
 }
 
-function Btn({children,onClick,primary=false,style={}}){
-  return <button onClick={onClick} style={{fontFamily:'inherit',fontSize:12,fontWeight:600,padding:'7px 14px',borderRadius:8,border:primary?'none':`1px solid ${C.border2}`,background:primary?C.red:'transparent',color:primary?'#fff':C.textDim,cursor:'pointer',...style}}>{children}</button>
+function EmptyState({msg}){
+  return <div style={{textAlign:"center",padding:"60px 20px"}}>
+    <div style={{fontSize:40,opacity:.3,marginBottom:12}}>📜</div>
+    <div style={{fontFamily:"'Cinzel',serif",fontSize:14,color:C.textMuted}}>{msg}</div>
+  </div>;
 }
 
-// ── MODAL ──
 function Modal({title,onClose,onSave,children}){
-  return (
-    <div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.88)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(4px)'}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,maxWidth:500,width:'92%',maxHeight:'88vh',overflowY:'auto',boxShadow:'0 0 40px rgba(192,57,43,.12)'}}>
-        <div style={{padding:'18px 20px 14px',borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-          <span style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.red2}}>{title}</span>
-          <button onClick={onClose} style={{background:'none',border:'none',fontSize:20,color:C.textDim,cursor:'pointer'}}>✕</button>
-        </div>
-        <div style={{padding:'18px 20px'}}>{children}</div>
-        <div style={{padding:'12px 20px 18px',display:'flex',gap:8,justifyContent:'flex-end',borderTop:`1px solid ${C.border}`}}>
-          <Btn onClick={onClose}>Annulla</Btn>
-          <Btn onClick={onSave} primary>Salva</Btn>
-        </div>
+  return <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
+    <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,maxWidth:500,width:"92%",maxHeight:"88vh",overflowY:"auto",boxShadow:`0 0 40px rgba(192,57,43,.12)`}}>
+      <div style={{padding:"18px 20px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <span style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.red2}}>{title}</span>
+        <button onClick={onClose} style={{background:"none",border:"none",fontSize:20,color:C.textDim,cursor:"pointer"}}>✕</button>
+      </div>
+      <div style={{padding:"18px 20px"}}>{children}</div>
+      <div style={{padding:"12px 20px 18px",display:"flex",gap:8,justifyContent:"flex-end",borderTop:`1px solid ${C.border}`}}>
+        <Btn onClick={onClose}>Annulla</Btn>
+        <Btn onClick={onSave} primary>Salva</Btn>
       </div>
     </div>
-  )
+  </div>;
 }
 
-function FormField({label,id,value,onChange,textarea=false,select=null,placeholder=''}){
-  const inp={width:'100%',background:C.bg,border:`1px solid ${C.border2}`,borderRadius:8,color:C.text,fontFamily:'inherit',fontSize:14,padding:'8px 12px',outline:'none',marginTop:4}
-  return (
-    <div style={{marginBottom:13}}>
-      <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>{label}</label>
-      {select
-        ? <select value={value} onChange={e=>onChange(e.target.value)} style={{...inp,cursor:'pointer'}}>
-            {select.map(o=><option key={o} value={o} style={{background:C.bg2}}>{o||'—'}</option>)}
+function FormFields({fields,vals,onChange}){
+  const inp = {width:"100%",background:C.bg,border:`1px solid ${C.border2}`,borderRadius:8,color:C.text,fontFamily:"inherit",fontSize:14,padding:"8px 12px",outline:"none",marginTop:4};
+  return <>{fields.map(f=>(
+    <div key={f.id} style={{marginBottom:13}}>
+      <label style={{display:"block",fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim}}>{f.l}</label>
+      {f.sel
+        ? <select value={vals[f.id]||""} onChange={e=>onChange(f.id,e.target.value)} style={{...inp,cursor:"pointer"}}>
+            {f.sel.map(o=><option key={o} value={o} style={{background:C.bg2}}>{o||"—"}</option>)}
           </select>
-        : textarea
-          ? <textarea value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={{...inp,minHeight:80,resize:'vertical'}}/>
-          : <input value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={inp}/>
+        : f.ta
+          ? <textarea value={vals[f.id]||""} onChange={e=>onChange(f.id,e.target.value)} placeholder={f.ph} style={{...inp,minHeight:80,resize:"vertical"}}/>
+          : <input value={vals[f.id]||""} onChange={e=>onChange(f.id,e.target.value)} placeholder={f.ph} style={inp}/>
       }
     </div>
-  )
+  ))}</>;
 }
 
-// ── NPC PANEL ──
-function NpcPanel({npc,onClose}){
-  if(!npc) return null
-  return (
-    <div style={{position:'fixed',inset:0,zIndex:200,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
-      <div onClick={onClose} style={{position:'absolute',inset:0,background:'rgba(0,0,0,.7)',backdropFilter:'blur(4px)'}}/>
-      <div style={{position:'relative',background:C.bg2,borderRadius:'20px 20px 0 0',border:`1px solid ${C.border2}`,width:'100%',maxWidth:640,maxHeight:'92vh',overflowY:'auto'}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'18px 20px 12px'}}>
-          <span style={{fontFamily:"'Cinzel',serif",fontSize:20,fontWeight:700,color:C.red2}}>{npc.name}</span>
-          <button onClick={onClose} style={{background:'none',border:'none',fontSize:22,color:C.textDim,cursor:'pointer'}}>✕</button>
-        </div>
-        <div style={{textAlign:'center',padding:'0 0 14px',color:C.redDim,fontSize:12}}>✦</div>
-        <div style={{padding:'0 20px 16px'}}>
-          {npc.img_url
-            ? <img src={npc.img_url} alt={npc.name} style={{width:'100%',borderRadius:12,border:`1px solid ${C.border2}`,maxHeight:340,objectFit:'cover',display:'block'}}/>
-            : <div style={{width:'100%',height:200,background:C.bg3,borderRadius:12,border:`1px solid ${C.border2}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:56}}>{npc.icon||'👤'}</div>
-          }
-        </div>
-        <div style={{padding:'0 20px 32px'}}>
-          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
-            {npc.attitude&&<Tag t={npc.attitude}/>}
-            {npc.stato&&<Tag t={npc.stato}/>}
-          </div>
-          {npc.role&&<div style={{fontSize:13,color:C.textDim,marginBottom:6,fontStyle:'italic'}}>{npc.role}</div>}
-          {npc.primo_incontro&&<div style={{fontSize:13,marginBottom:14}}><strong>Primo incontro:</strong> <span style={{color:C.red2}}>{npc.primo_incontro}</span></div>}
-          {npc.description&&<div style={{fontSize:15,color:C.text,lineHeight:1.75}}>{npc.description}</div>}
-        </div>
+function PinModal({onSuccess,onClose}){
+  const [val,setVal]=useState("");
+  const [err,setErr]=useState("");
+  const press = d => {
+    if(val.length>=4)return;
+    const next=val+d;
+    setVal(next);
+    if(next.length===4){
+      setTimeout(()=>{
+        if(next===DM_PIN){onSuccess();}
+        else{setErr("PIN errato");setVal("");}
+      },80);
+    }
+  };
+  return <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
+    <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,width:280,padding:"20px 20px 16px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <span style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.red2}}>🔐 Accesso DM</span>
+        <button onClick={onClose} style={{background:"none",border:"none",fontSize:20,color:C.textDim,cursor:"pointer"}}>✕</button>
       </div>
-    </div>
-  )
-}
-
-// ── CHAR SHEET ──
-const ABILITA=[
-  {n:'Acrobazia',s:'dex'},{n:'Addestrare animali',s:'wis'},{n:'Arcano',s:'int'},
-  {n:'Atletica',s:'str'},{n:'Furtività',s:'dex'},{n:'Indagare',s:'int'},
-  {n:'Inganno',s:'cha'},{n:'Intimidire',s:'cha'},{n:'Intuizione',s:'wis'},
-  {n:'Medicina',s:'wis'},{n:'Natura',s:'int'},{n:'Percezione',s:'wis'},
-  {n:'Performance',s:'cha'},{n:'Persuasione',s:'cha'},{n:'Rapidità di mano',s:'dex'},
-  {n:'Religione',s:'int'},{n:'Sopravvivenza',s:'wis'},{n:'Storia',s:'int'},
-]
-
-function CharSheet({char,isDM,onEdit,onHpChange}){
-  const [tab,setTab]=useState('scheda')
-  const tabs=['scheda','incantesimi','inventario','famigli','note session']
-  const pct=char.hp_max>0?Math.max(0,Math.min(100,(char.hp/char.hp_max)*100)):0
-  const hpCol=pct>60?C.green:pct>25?C.yellow:C.red2
-  const color=char.color||'#c084fc'
-
-  return (
-    <div style={{maxWidth:520,margin:'0 auto'}}>
-      <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:16}}>
-        <div style={{width:72,height:72,borderRadius:'50%',border:`3px solid ${color}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:32,background:C.bg3,flexShrink:0}}>{char.icon||'🛡️'}</div>
-        <div>
-          <div style={{fontFamily:"'Cinzel',serif",fontSize:22,fontWeight:700,color:C.text}}>{char.name}</div>
-          <div style={{fontSize:13,color:C.textDim,marginTop:3}}>{char.class} {char.race} · Lv {char.level||1}</div>
-        </div>
+      <div style={{display:"flex",gap:12,justifyContent:"center",margin:"0 0 16px"}}>
+        {[0,1,2,3].map(i=><div key={i} style={{width:13,height:13,borderRadius:"50%",border:`2px solid ${i<val.length?C.red2:C.border2}`,background:i<val.length?C.red2:"transparent",transition:"all .15s"}}/>)}
       </div>
-
-      <div style={{display:'flex',gap:2,background:C.bg3,borderRadius:10,padding:3,marginBottom:16,overflowX:'auto'}}>
-        {tabs.map(t=>(
-          <button key={t} onClick={()=>setTab(t)} style={{fontSize:12,fontWeight:tab===t?600:400,padding:'7px 13px',borderRadius:8,border:'none',background:tab===t?C.red:'transparent',color:tab===t?'#fff':C.textDim,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,fontFamily:'inherit'}}>
-            {t}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,maxWidth:210,margin:"0 auto"}}>
+        {["1","2","3","4","5","6","7","8","9","CLR","0","⌫"].map(k=>(
+          <button key={k} onClick={()=>k==="CLR"?setVal(""):k==="⌫"?setVal(v=>v.slice(0,-1)):press(k)}
+            style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,color:C.text,fontSize:k.length>1?11:18,fontWeight:500,padding:"13px 0",cursor:"pointer"}}>
+            {k}
           </button>
         ))}
       </div>
-
-      {tab==='scheda'&&<>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
-          {[['CA',char.ac||0],['Livello',char.level||1],['Background',char.background||'—']].map(([l,v])=>(
-            <div key={l} style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:'12px 8px',textAlign:'center'}}>
-              <div style={{fontSize:9,fontWeight:700,letterSpacing:'.18em',textTransform:'uppercase',color:C.textDim}}>{l}</div>
-              <div style={{fontFamily:"'Cinzel',serif",fontSize:l==='Background'?13:22,fontWeight:700,color:C.text,marginTop:l==='Background'?5:3}}>{v}</div>
-            </div>
-          ))}
-        </div>
-
-        <Card style={{marginBottom:12}}>
-          <div style={{fontSize:13,color:C.textDim,marginBottom:10}}>Punti Ferita</div>
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <button onClick={()=>onHpChange(char.id,-1)} style={{width:36,height:36,borderRadius:'50%',border:`2px solid ${C.red}`,background:'transparent',color:C.red,fontSize:20,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700}}>−</button>
-            <div style={{fontFamily:"'Cinzel',serif",fontSize:22,fontWeight:700,color:C.text,background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:'6px 14px',minWidth:60,textAlign:'center'}}>{char.hp}</div>
-            <div style={{fontSize:13,color:C.textDim}}>/ {char.hp_max}</div>
-            <button onClick={()=>onHpChange(char.id,1)} style={{width:36,height:36,borderRadius:'50%',border:`2px solid ${C.green}`,background:'transparent',color:C.green,fontSize:20,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,marginLeft:'auto'}}>+</button>
-          </div>
-          <div style={{height:6,background:C.bg4,borderRadius:3,overflow:'hidden',marginTop:10}}>
-            <div style={{height:'100%',width:`${pct}%`,background:hpCol,borderRadius:3,transition:'width .3s'}}/>
-          </div>
-        </Card>
-
-        <Card style={{marginBottom:12}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:'.2em',textTransform:'uppercase',color:C.red2,marginBottom:10}}>Caratteristiche</div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:6}}>
-            {[['STR','str'],['DEX','dex'],['CON','con'],['INT','int'],['WIS','wis'],['CHA','cha']].map(([l,k])=>(
-              <div key={k} style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:'10px 4px',textAlign:'center'}}>
-                <div style={{fontSize:9,fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:C.textDim}}>{l}</div>
-                <div style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.text,margin:'3px 0'}}>{char[k]||10}</div>
-                <div style={{fontSize:11,fontWeight:600,color:color}}>{fmt(mod(char[k]||10))}</div>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:'.2em',textTransform:'uppercase',color:C.red2,marginBottom:10,display:'flex',justifyContent:'space-between'}}>
-            <span>Abilità</span>
-            <span style={{fontWeight:400,color:C.textMuted}}>comp +{Math.ceil((char.level||1)/4)+1}</span>
-          </div>
-          {ABILITA.map(a=>(
-            <div key={a.n} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 2px'}}>
-              <div style={{width:14,height:14,borderRadius:'50%',border:`2px solid ${C.border2}`,flexShrink:0}}/>
-              <div style={{fontSize:13,fontWeight:600,color:C.text,width:30}}>{fmt(mod(char[a.s]||10))}</div>
-              <div style={{fontSize:13,color:C.textDim,flex:1}}>{a.n}</div>
-            </div>
-          ))}
-        </Card>
-      </>}
-
-      {tab!=='scheda'&&(
-        <Card>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:'.2em',textTransform:'uppercase',color:C.red2,marginBottom:10}}>
-            {tab==='note session'?'Note Sessione':tab.charAt(0).toUpperCase()+tab.slice(1)}
-          </div>
-          <div style={{fontSize:14,color:C.textDim,lineHeight:1.75,whiteSpace:'pre-wrap'}}>
-            {char[tab==='note session'?'note':tab==='inventario'?'inventario':tab==='incantesimi'?'incantesimi':'famigli']||'Nessun contenuto.'}
-          </div>
-        </Card>
-      )}
-
-      {isDM&&(
-        <div style={{display:'flex',justifyContent:'center',marginTop:12}}>
-          <Btn onClick={onEdit}>✏ Modifica personaggio</Btn>
-        </div>
-      )}
+      <div style={{textAlign:"center",fontSize:11,fontWeight:600,color:C.red2,marginTop:8,minHeight:16}}>{err}</div>
     </div>
-  )
+  </div>;
 }
 
-// ── ORACLE ──
-function Oracle({npcs,timeline,factions}){
-  const [messages,setMessages]=useState([])
-  const [input,setInput]=useState('')
-  const [loading,setLoading]=useState(false)
-  const bottomRef=useRef()
-
-  useEffect(()=>{
-    bottomRef.current?.scrollIntoView({behavior:'smooth'})
-  },[messages])
-
-  const buildContext=()=>{
-    let ctx=`Sei l'Oracolo di House Valerius, un'entità mistica e sapiente che conosce ogni segreto della campagna D&D "House Valerius". Rispondi in modo immersivo, evocativo e in italiano, come se fossi un antico oracolo che svela verità nascoste. Non uscire mai dal personaggio.
-
-`
-
-    if(npcs?.length){
-      ctx += `## PERSONAGGI DELLA CAMPAGNA\n`
-      npcs.forEach(n=>{
-        ctx += `- **${n.name}** (${n.role || ''}): ${n.attitude || 'Sconosciuto'}, ${n.vitality || 'vivo'}. ${n.description || ''}\n`
-      })
-      ctx += `\n`
-    }
-
-    if(timeline?.length){
-      ctx += `## CRONOLOGIA DEGLI EVENTI\n`
-      timeline.forEach(t=>{
-        ctx += `- [${t.date || 'Data ignota'}] **${t.title}**: ${t.description || ''}\n`
-      })
-      ctx += `\n`
-    }
-
-    if(factions?.length){
-      ctx += `## FAZIONI\n`
-      factions.forEach(f=>{
-        ctx += `- **${f.name}**: ${f.description || ''}\n`
-      })
-      ctx += `\n`
-    }
-
-    return ctx
-  }
-
-  const send=async()=>{
-    if(!input.trim() || loading) return
-
-    const userMsg={role:'user',content:input.trim()}
-    const newMessages=[...messages,userMsg]
-
-    setMessages(newMessages)
-    setInput('')
-    setLoading(true)
-
-    try {
-      const systemPrompt=buildContext()
-
-      const response=await fetch('/api/oracolo',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-          context: systemPrompt,
-          messages: newMessages
-        })
-      })
-
-      const data=await response.json()
-
-      const reply =
-        data.reply ||
-        data.error ||
-        "L'oracolo tace..."
-
-      setMessages(m=>[...m,{role:'assistant',content:reply}])
-    } catch(e){
-      setMessages(m=>[
-        ...m,
-        {
-          role:'assistant',
-          content:'Le nebbie del destino avvolgono la risposta... Riprova tra poco.'
+function NpcPanel({npc,onClose}){
+  if(!npc)return null;
+  return <div style={{position:"fixed",inset:0,zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+    <div onClick={onClose} style={{position:"absolute",inset:0,background:"rgba(0,0,0,.7)",backdropFilter:"blur(4px)"}}/>
+    <div style={{position:"relative",background:C.bg2,borderRadius:"20px 20px 0 0",border:`1px solid ${C.border2}`,width:"100%",maxWidth:640,maxHeight:"92vh",overflowY:"auto"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 20px 12px"}}>
+        <span style={{fontFamily:"'Cinzel',serif",fontSize:20,fontWeight:700,color:C.red2}}>{npc.name}</span>
+        <button onClick={onClose} style={{background:"none",border:"none",fontSize:22,color:C.textDim,cursor:"pointer"}}>✕</button>
+      </div>
+      <div style={{textAlign:"center",padding:"0 0 14px",color:C.redDim,fontSize:12}}>✦</div>
+      <div style={{padding:"0 20px 16px"}}>
+        {npc.img
+          ? <img src={npc.img} alt={npc.name} style={{width:"100%",borderRadius:12,border:`1px solid ${C.border2}`,maxHeight:340,objectFit:"cover",display:"block"}}/>
+          : <div style={{width:"100%",height:200,background:C.bg3,borderRadius:12,border:`1px solid ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:56}}>{npc.icon||"👤"}</div>
         }
-      ])
-    }
-
-    setLoading(false)
-  }
-
-  const handleKey=e=>{
-    if(e.key==='Enter' && !e.shiftKey){
-      e.preventDefault()
-      send()
-    }
-  }
-
-  return <div style={{maxWidth:600,margin:'0 auto',display:'flex',flexDirection:'column',height:'calc(100vh - 140px)'}}>
-    <div style={{textAlign:'center',marginBottom:16}}>
-      <div style={{fontSize:32,marginBottom:6}}>🔮</div>
-      <div style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.red2,letterSpacing:'.1em'}}>
-        Oracolo di House Valerius
       </div>
-      <div style={{fontSize:12,color:C.textMuted,marginTop:4,fontStyle:'italic'}}>
-        Interroga i misteri della campagna
+      <div style={{padding:"0 20px 32px"}}>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
+          {npc.tag&&<Tag t={npc.tag}/>}{npc.stato&&<Tag t={npc.stato}/>}
+        </div>
+        {npc.role&&<div style={{fontSize:13,color:C.textDim,marginBottom:6,fontStyle:"italic"}}>{npc.role}</div>}
+        {npc.primo&&<div style={{fontSize:13,marginBottom:14}}><strong>Primo incontro:</strong> <span style={{color:C.red2}}>{npc.primo}</span></div>}
+        {npc.desc&&<div style={{fontSize:15,color:C.text,lineHeight:1.75}}>{npc.desc}</div>}
       </div>
     </div>
-
-    <div style={{flex:1,overflowY:'auto',display:'flex',flexDirection:'column',gap:12,paddingBottom:12,scrollbarWidth:'thin'}}>
-      {messages.length===0 && <div style={{textAlign:'center',padding:'40px 20px'}}>
-        <div style={{fontSize:13,color:C.textMuted,fontStyle:'italic',lineHeight:1.8}}>
-          "Chi osa disturbare il silenzio dell'Oracolo?"<br/>
-          <span style={{fontSize:11,opacity:.6}}>Chiedi ciò che vuoi sapere sulla campagna...</span>
-        </div>
-
-        <div style={{display:'flex',flexWrap:'wrap',gap:8,justifyContent:'center',marginTop:20}}>
-          {[
-            'Chi è il personaggio più pericoloso?',
-            'Cosa sappiamo delle fazioni?',
-            'Racconta gli ultimi eventi',
-            'Quali segreti nasconde la campagna?'
-          ].map(s=>(
-            <button
-              key={s}
-              onClick={()=>setInput(s)}
-              style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:20,padding:'6px 14px',fontSize:12,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-      </div>}
-
-      {messages.map((m,i)=>(
-        <div key={i} style={{display:'flex',justifyContent:m.role==='user'?'flex-end':'flex-start'}}>
-          {m.role==='assistant' && <div style={{width:32,height:32,borderRadius:'50%',background:C.bg3,border:`1px solid ${C.red}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0,marginRight:8,alignSelf:'flex-end'}}>
-            🔮
-          </div>}
-
-          <div style={{
-            maxWidth:'80%',
-            padding:'12px 16px',
-            borderRadius:m.role==='user'?'18px 18px 4px 18px':'18px 18px 18px 4px',
-            background:m.role==='user'?C.red:C.bg2,
-            border:m.role==='user'?'none':`1px solid ${C.border2}`,
-            color:C.text,
-            fontSize:14,
-            lineHeight:1.75,
-            fontStyle:m.role==='assistant'?'italic':'normal',
-            whiteSpace:'pre-wrap'
-          }}>
-            {m.content}
-          </div>
-        </div>
-      ))}
-
-      {loading && <div style={{display:'flex',alignItems:'center',gap:8}}>
-        <div style={{width:32,height:32,borderRadius:'50%',background:C.bg3,border:`1px solid ${C.red}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16}}>
-          🔮
-        </div>
-        <div style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:'18px 18px 18px 4px',padding:'12px 16px'}}>
-          <div style={{display:'flex',gap:4}}>
-            {[0,1,2].map(i=>(
-              <div key={i} style={{width:6,height:6,borderRadius:'50%',background:C.red,animation:`pulse 1.2s ease-in-out ${i*0.2}s infinite`}}/>
-            ))}
-          </div>
-        </div>
-      </div>}
-
-      <div ref={bottomRef}/>
-    </div>
-
-    <div style={{display:'flex',gap:8,paddingTop:12,borderTop:`1px solid ${C.border}`}}>
-      <textarea
-        value={input}
-        onChange={e=>setInput(e.target.value)}
-        onKeyDown={handleKey}
-        placeholder="Interroga l'oracolo..."
-        rows={2}
-        style={{flex:1,padding:'10px 14px',background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:12,fontSize:14,color:C.text,fontFamily:'inherit',outline:'none',resize:'none',lineHeight:1.5}}
-      />
-      <button
-        onClick={send}
-        disabled={loading || !input.trim()}
-        style={{width:44,borderRadius:12,background:input.trim() && !loading ? C.red : C.bg3,border:'none',color:'#fff',fontSize:18,cursor:input.trim() && !loading ? 'pointer' : 'default',flexShrink:0,transition:'background .2s'}}
-      >
-        ➤
-      </button>
-    </div>
-  </div>
+  </div>;
 }
 
-// ── DICE ROLLER ──
-const DICE=[4,6,8,10,12,20,100]
-const DICE_COLORS={4:'#e74c3c',6:'#e67e22',8:'#f1c40f',10:'#2ecc71',12:'#3498db',20:'#9b59b6',100:'#e91e63'}
+function CharSheet({p,idx,isAuth,onEdit,onHpChange}){
+  const [tab,setTab]=useState("scheda");
+  const tabs=["scheda","incantesimi","inventario","famigli","note session"];
+  const hpPct=p.hpMax>0?Math.max(0,Math.min(100,(p.hp/p.hpMax)*100)):0;
+  const hpColor=hpPct>60?C.green:hpPct>25?C.yellow:C.red2;
 
-function DiceRoller(){
-  const [queue,setQueue]=useState([]) // {faces, count}
-  const [modifier,setModifier]=useState(0)
-  const [results,setResults]=useState(null)
-  const [rolling,setRolling]=useState(false)
-  const [history,setHistory]=useState([])
-
-  const addDie=face=>{
-    setQueue(q=>{
-      const ex=q.find(d=>d.faces===face)
-      if(ex) return q.map(d=>d.faces===face?{...d,count:d.count+1}:d)
-      return [...q,{faces:face,count:1}]
-    })
-  }
-
-  const removeDie=face=>{
-    setQueue(q=>q.map(d=>d.faces===face?{...d,count:Math.max(0,d.count-1)}:d).filter(d=>d.count>0))
-  }
-
-  const roll=()=>{
-    if(!queue.length) return
-    setRolling(true)
-    setTimeout(()=>{
-      const rolls=[]
-      queue.forEach(({faces,count})=>{
-        for(let i=0;i<count;i++){
-          rolls.push({faces,value:Math.floor(Math.random()*faces)+1})
-        }
-      })
-      const total=rolls.reduce((s,r)=>s+r.value,0)+(modifier||0)
-      const res={rolls,total,modifier,timestamp:new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}),label:queue.map(d=>`${d.count}d${d.faces}`).join('+')}
-      setResults(res)
-      setHistory(h=>[res,...h].slice(0,10))
-      setRolling(false)
-    },600)
-  }
-
-  const clear=()=>{setQueue([]);setResults(null);setModifier(0)}
-
-  const queueLabel=queue.map(d=>`${d.count}d${d.faces}`).join(' + ')+(modifier?` ${modifier>=0?'+':'-'} ${Math.abs(modifier)}`:'')
-
-  return <div style={{maxWidth:560,margin:'0 auto'}}>
-    <div style={{fontFamily:"'Cinzel',serif",fontSize:16,fontWeight:700,color:C.red2,marginBottom:16}}>🎲 Tira Dadi</div>
-
-    {/* Dado buttons */}
-    <Card style={{marginBottom:12}}>
-      <div style={{fontSize:10,fontWeight:700,letterSpacing:'.2em',textTransform:'uppercase',color:C.textDim,marginBottom:12}}>Scegli i dadi</div>
-      <div style={{display:'flex',gap:10,flexWrap:'wrap',justifyContent:'center'}}>
-        {DICE.map(face=>{
-          const col=DICE_COLORS[face]
-          const inQueue=queue.find(d=>d.faces===face)
-          return <div key={face} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
-            <button onClick={()=>addDie(face)} style={{
-              width:56,height:56,borderRadius:12,border:`2px solid ${col}`,
-              background:inQueue?col+'33':'transparent',
-              color:col,fontSize:15,fontWeight:700,cursor:'pointer',
-              fontFamily:"'Cinzel',serif",position:'relative',
-              boxShadow:inQueue?`0 0 12px ${col}44`:'none',
-              transition:'all .15s'
-            }}>
-              d{face}
-              {inQueue&&<span style={{position:'absolute',top:-8,right:-8,background:col,color:'#fff',borderRadius:'50%',width:20,height:20,fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center'}}>{inQueue.count}</span>}
-            </button>
-            {inQueue&&<button onClick={()=>removeDie(face)} style={{background:'none',border:'none',cursor:'pointer',fontSize:12,color:C.textDim,padding:0}}>−1</button>}
-          </div>
-        })}
-      </div>
-    </Card>
-
-    {/* Modifier */}
-    <Card style={{marginBottom:12}}>
-      <div style={{display:'flex',alignItems:'center',gap:12}}>
-        <span style={{fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim,whiteSpace:'nowrap'}}>Modificatore</span>
-        <button onClick={()=>setModifier(m=>m-1)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${C.border2}`,background:'transparent',color:C.text,fontSize:18,cursor:'pointer',fontWeight:700}}>−</button>
-        <input type="number" value={modifier} onChange={e=>setModifier(parseInt(e.target.value)||0)} style={{width:60,textAlign:'center',padding:'6px 4px',border:`1px solid ${C.border2}`,borderRadius:8,fontSize:16,fontWeight:700,color:modifier>=0?C.green:C.red2,background:C.bg3,fontFamily:"'Cinzel',serif",outline:'none'}}/>
-        <button onClick={()=>setModifier(m=>m+1)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${C.border2}`,background:'transparent',color:C.text,fontSize:18,cursor:'pointer',fontWeight:700}}>+</button>
-      </div>
-    </Card>
-
-    {/* Queue + Roll button */}
-    {queue.length>0&&<div style={{marginBottom:12,display:'flex',flexDirection:'column',gap:8}}>
-      <div style={{fontSize:13,color:C.textDim,textAlign:'center',fontFamily:"'Cinzel',serif"}}>{queueLabel||'Nessun dado'}</div>
-      <div style={{display:'flex',gap:8}}>
-        <button onClick={roll} disabled={rolling} style={{flex:1,background:C.red,color:'#fff',border:'none',borderRadius:10,padding:'14px',fontSize:16,fontWeight:700,cursor:'pointer',fontFamily:"'Cinzel',serif",letterSpacing:'.05em',opacity:rolling?0.7:1,transition:'opacity .2s'}}>
-          {rolling?'🎲 ...':'🎲 TIRA!'}
-        </button>
-        <button onClick={clear} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:10,padding:'14px 16px',fontSize:13,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>Reset</button>
-      </div>
-    </div>}
-
-    {/* Result */}
-    {results&&<Card style={{marginBottom:12,border:`2px solid ${C.red}44`,background:C.bg3}}>
-      <div style={{textAlign:'center',marginBottom:12}}>
-        <div style={{fontFamily:"'Cinzel',serif",fontSize:48,fontWeight:700,color:C.text,lineHeight:1}}>{results.total}</div>
-        <div style={{fontSize:12,color:C.textDim,marginTop:6}}>{results.label}{results.modifier?` ${results.modifier>=0?'+':''} ${results.modifier}`:''}</div>
-      </div>
-      <div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'center'}}>
-        {results.rolls.map((r,i)=>{
-          const col=DICE_COLORS[r.faces]
-          const isMax=r.value===r.faces
-          const isMin=r.value===1
-          return <div key={i} style={{
-            width:40,height:40,borderRadius:8,
-            background:isMax?col+'33':isMin?C.redDim+'44':C.bg2,
-            border:`2px solid ${isMax?col:isMin?C.red:C.border}`,
-            display:'flex',alignItems:'center',justifyContent:'center',
-            fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:700,
-            color:isMax?col:isMin?C.red2:C.text,
-            boxShadow:isMax?`0 0 8px ${col}66`:'none'
-          }}>
-            {r.value}
-          </div>
-        })}
-        {results.modifier!==0&&<div style={{width:40,height:40,borderRadius:8,background:C.bg2,border:`2px solid ${C.border}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:results.modifier>=0?C.green:C.red2}}>
-          {results.modifier>=0?'+':''}{results.modifier}
-        </div>}
-      </div>
-    </Card>}
-
-    {/* History */}
-    {history.length>1&&<Card>
-      <div style={{fontSize:10,fontWeight:700,letterSpacing:'.2em',textTransform:'uppercase',color:C.textDim,marginBottom:10}}>Ultimi tiri</div>
-      <div style={{display:'flex',flexDirection:'column',gap:6}}>
-        {history.slice(1).map((h,i)=>(
-          <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 10px',background:C.bg3,borderRadius:8}}>
-            <span style={{fontSize:12,color:C.textDim,fontFamily:"'Cinzel',serif"}}>{h.label}</span>
-            <span style={{fontSize:16,fontWeight:700,color:C.text,fontFamily:"'Cinzel',serif"}}>{h.total}</span>
-            <span style={{fontSize:11,color:C.textMuted}}>{h.timestamp}</span>
-          </div>
-        ))}
-      </div>
-    </Card>}
-  </div>
-}
-
-// ── PLAYER SHEET ──
-const STATS_LIST=[['FOR','str'],['DES','dex'],['COS','con'],['INT','int'],['SAG','wis'],['CAR','cha']]
-const ITEM_TYPES=['Arma','Arma magica','Armatura','Consumabile','Vari']
-const STATUS_COLORS={'visitato':'#2ecc71','noto':'#3498db','sconosciuto':'#8a7fa0','pericoloso':'#e74c3c'}
-
-function ImgUploadChar({bucket,folder,currentPath,onUploaded,label}){
-  const [uploading,setUploading]=useState(false)
-  const ref=useRef()
-  const url=getPublicUrl(bucket,currentPath)
-  const handle=async(e)=>{
-    const file=e.target.files[0]; if(!file) return
-    setUploading(true)
-    const path=await uploadImage(bucket,file,folder)
-    setUploading(false)
-    if(path) onUploaded(path)
-  }
-  return <div style={{marginBottom:14}}>
-    <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim,marginBottom:6}}>{label}</label>
-    <div style={{display:'flex',alignItems:'center',gap:12}}>
-      {url&&<img src={url} alt="" style={{width:56,height:56,borderRadius:'50%',objectFit:'cover',border:`2px solid ${C.red2}`}}/>}
-      <button type="button" onClick={()=>ref.current.click()} style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:'9px 16px',fontSize:14,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>
-        {uploading?'Caricamento...':url?'Cambia':'Carica immagine'}
-      </button>
-      <input ref={ref} type="file" accept="image/*" style={{display:'none'}} onChange={handle}/>
+  const statBox=(lbl,val,sub)=>(
+    <div style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 8px",textAlign:"center"}}>
+      <div style={{fontSize:9,fontWeight:700,letterSpacing:".18em",textTransform:"uppercase",color:C.textDim}}>{lbl}</div>
+      <div style={{fontFamily:"'Cinzel',serif",fontSize:sub?16:22,fontWeight:700,color:C.text,marginTop:3}}>{val}</div>
+      {sub&&<div style={{fontSize:12,fontWeight:600,color:C.red2}}>{sub}</div>}
     </div>
-  </div>
-}
+  );
 
-function PlayerSheet({playerName,playerColor,isOwner}){
-  const [tab,setTab]=useState('scheda')
-  const [char,setChar]=useState(null)
-  const [inventory,setInventory]=useState([])
-  const [companions,setCompanions]=useState([])
-  const [notes,setNotes]=useState([])
-  const [loading,setLoading]=useState(true)
-  const [editMode,setEditMode]=useState(false)
-  const [playerId,setPlayerId]=useState(null)
-  const [expandedNote,setExpandedNote]=useState(null)
-
-  const EC={name:'',class:'',race:'',level:1,background:'',hp:10,max_hp:10,ac:10,str:10,dex:10,con:10,int:10,wis:10,cha:10,attacks:'',spell_slots_total:'',spell_slots_used:'',gold:0,silver:0,copper:0,platinum:0,image_path:''}
-  const [charForm,setCharForm]=useState(EC)
-
-  const EI={name:'',type:'Vari',description:'',quantity:1}
-  const [itemForm,setItemForm]=useState(EI)
-  const [showItemModal,setShowItemModal]=useState(false)
-  const [editingItem,setEditingItem]=useState(null)
-
-  const ECP={name:'',type:'',hp:'',ac:'',notes:'',image_path:''}
-  const [compForm,setCompForm]=useState(ECP)
-  const [showCompModal,setShowCompModal]=useState(false)
-  const [editingComp,setEditingComp]=useState(null)
-
-  const EN={session_title:'',date:'',content:''}
-  const [noteForm,setNoteForm]=useState(EN)
-  const [showNoteModal,setShowNoteModal]=useState(false)
-  const [editingNote,setEditingNote]=useState(null)
-
-  const inp={width:'100%',boxSizing:'border-box',padding:'9px 12px',background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,fontSize:15,color:C.text,fontFamily:'inherit',outline:'none',marginTop:4}
-
-  useEffect(()=>{
-    // Trova l'ID del giocatore dal nome del personaggio
-    supabase.from('profiles').select('id').ilike('character_name', playerName).maybeSingle()
-      .then(({data:profileData})=>{
-        const pid = profileData?.id
-        if(!pid){setLoading(false);return}
-        setPlayerId(pid)
-        Promise.all([
-          supabase.from('player_characters').select('*').eq('player_id',pid).maybeSingle(),
-          supabase.from('player_inventory').select('*').eq('player_id',pid),
-          supabase.from('player_companions').select('*').eq('player_id',pid),
-          supabase.from('player_session_notes').select('*').eq('player_id',pid).order('created_at',{ascending:false}),
-        ]).then(([c,inv,comp,n])=>{
-          if(c.data){setChar(c.data);setCharForm({...EC,...c.data})}
-          setInventory(inv.data||[])
-          setCompanions(comp.data||[])
-          setNotes(n.data||[])
-          setLoading(false)
-        })
-      })
-  },[playerName])
-
-  const saveChar=async()=>{
-    if(!playerId) return
-    const payload={...charForm,player_id:playerId}
-    if(char){
-      const {data}=await supabase.from('player_characters').update(payload).eq('id',char.id).select()
-      if(data) setChar(data[0])
-    } else {
-      // Controlla se esiste già prima di inserire
-      const {data:existing}=await supabase.from('player_characters').select('id').eq('player_id',playerId).maybeSingle()
-      if(existing){
-        const {data}=await supabase.from('player_characters').update(payload).eq('id',existing.id).select()
-        if(data){setChar(data[0]);setCharForm({...EC,...data[0]})}
-      } else {
-        const {data}=await supabase.from('player_characters').insert([payload]).select()
-        if(data){setChar(data[0]);setCharForm({...EC,...data[0]})}
-      }
-    }
-    setEditMode(false)
-  }
-
-  const handleHp=async(delta)=>{
-    if(!char) return
-    const newHp=Math.max(0,Math.min(char.max_hp,char.hp+delta))
-    setChar(c=>({...c,hp:newHp}))
-    await supabase.from('player_characters').update({hp:newHp}).eq('id',char.id)
-  }
-
-  const handleHpInput=async(val)=>{
-    const v=parseInt(val)||0
-    setChar(c=>({...c,hp:v}))
-    if(char) await supabase.from('player_characters').update({hp:v}).eq('id',char.id)
-  }
-
-  const handleCoin=async(key,val)=>{
-    const v=parseInt(val)||0
-    setCharForm(f=>({...f,[key]:v}))
-    setChar(c=>c?({...c,[key]:v}):null)
-    if(char){
-      await supabase.from('player_characters').update({[key]:v}).eq('id',char.id)
-    } else if(playerId){
-      // Controlla se esiste già prima di inserire
-      const {data:existing}=await supabase.from('player_characters').select('id').eq('player_id',playerId).maybeSingle()
-      if(existing){
-        await supabase.from('player_characters').update({[key]:v}).eq('id',existing.id)
-        setChar(c=>({...EC,...c,[key]:v,id:existing.id,player_id:playerId}))
-      } else {
-        const {data}=await supabase.from('player_characters').insert([{...EC,[key]:v,player_id:playerId}]).select()
-        if(data){setChar(data[0]);setCharForm({...EC,...data[0]})}
-      }
-    }
-  }
-
-  const saveItem=async()=>{
-    if(!itemForm.name||!playerId) return
-    if(editingItem){
-      const {data}=await supabase.from('player_inventory').update(itemForm).eq('id',editingItem.id).select()
-      if(data) setInventory(inventory.map(i=>i.id===editingItem.id?data[0]:i))
-    } else {
-      const {data}=await supabase.from('player_inventory').insert([{...itemForm,player_id:playerId}]).select()
-      if(data) setInventory([...inventory,data[0]])
-    }
-    setShowItemModal(false)
-  }
-
-  const saveComp=async()=>{
-    if(!compForm.name||!playerId) return
-    if(editingComp){
-      const {data}=await supabase.from('player_companions').update(compForm).eq('id',editingComp.id).select()
-      if(data) setCompanions(companions.map(c=>c.id===editingComp.id?data[0]:c))
-    } else {
-      const {data}=await supabase.from('player_companions').insert([{...compForm,player_id:playerId}]).select()
-      if(data) setCompanions([...companions,data[0]])
-    }
-    setShowCompModal(false)
-  }
-
-  const saveNote=async()=>{
-    if(!noteForm.session_title||!playerId) return
-    if(editingNote){
-      const {data}=await supabase.from('player_session_notes').update(noteForm).eq('id',editingNote.id).select()
-      if(data) setNotes(notes.map(n=>n.id===editingNote.id?data[0]:n))
-    } else {
-      const {data}=await supabase.from('player_session_notes').insert([{...noteForm,player_id:playerId}]).select()
-      if(data) setNotes([data[0],...notes])
-    }
-    setShowNoteModal(false)
-  }
-
-  if(loading) return <div style={{textAlign:'center',padding:'60px 20px',color:C.textMuted}}>Caricamento...</div>
-
-  const hpPct=char&&char.max_hp>0?Math.max(0,Math.min(100,(char.hp/char.max_hp)*100)):0
-  const hpColor=hpPct>60?C.green:hpPct>30?C.yellow:C.red2
-  const imgUrl=char?getPublicUrl('character-images',char.image_path):null
-  const slotsT=char?.spell_slots_total?char.spell_slots_total.split(',').map(s=>parseInt(s.trim())||0):[]
-  const slotsU=char?.spell_slots_used?char.spell_slots_used.split(',').map(s=>parseInt(s.trim())||0):[]
-
-  const tabs=['scheda','inventario','famigli','note sessione']
-
-  return <div style={{maxWidth:560,margin:'0 auto'}}>
-    {/* Header */}
-    <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:16}}>
-      {imgUrl
-        ?<img src={imgUrl} alt="" style={{width:64,height:64,borderRadius:'50%',objectFit:'cover',border:`3px solid ${playerColor}`,flexShrink:0,boxShadow:`0 0 16px ${playerColor}66`}}/>
-        :<div style={{width:64,height:64,borderRadius:'50%',background:playerColor+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:24,fontWeight:700,color:playerColor,border:`3px solid ${playerColor}`,flexShrink:0,fontFamily:"'Cinzel',serif"}}>{playerName[0].toUpperCase()}</div>
-      }
+  return <div style={{maxWidth:520,margin:"0 auto"}}>
+    <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:16}}>
+      <div style={{width:72,height:72,borderRadius:"50%",border:`3px solid ${p.color}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,background:C.bg3,flexShrink:0}}>{p.icon||"🛡️"}</div>
       <div>
-        <div style={{fontFamily:"'Cinzel',serif",fontSize:22,fontWeight:700,color:C.text}}>{char?.name||playerName.charAt(0).toUpperCase()+playerName.slice(1)}</div>
-        {char&&<div style={{fontSize:13,color:C.textDim,marginTop:3}}>{char.race} · {char.class} · Lv {char.level}</div>}
+        <div style={{fontFamily:"'Cinzel',serif",fontSize:22,fontWeight:700,color:C.text}}>{p.name}</div>
+        <div style={{fontSize:13,color:C.textDim,marginTop:3}}>{p.sub}</div>
       </div>
     </div>
 
-    {/* Tabs */}
-    <div style={{display:'flex',gap:2,background:C.bg3,borderRadius:10,padding:3,marginBottom:16,overflowX:'auto',scrollbarWidth:'none'}}>
-      {tabs.map(t=><button key={t} onClick={()=>setTab(t)} style={{fontSize:12,fontWeight:tab===t?600:400,padding:'7px 13px',borderRadius:8,border:'none',background:tab===t?C.red:'transparent',color:tab===t?'#fff':C.textDim,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,fontFamily:'inherit'}}>{t}</button>)}
+    <div style={{display:"flex",gap:2,background:C.bg3,borderRadius:10,padding:3,marginBottom:16,overflowX:"auto"}}>
+      {tabs.map(t=>(
+        <button key={t} onClick={()=>setTab(t)} style={{fontSize:12,fontWeight:tab===t?600:400,padding:"7px 13px",borderRadius:8,border:"none",background:tab===t?C.red:"transparent",color:tab===t?"#fff":C.textDim,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>
+          {t}
+        </button>
+      ))}
     </div>
 
-    {/* SCHEDA */}
-    {tab==='scheda'&&<>
-      <div style={{display:'flex',justifyContent:'flex-end',marginBottom:10}}>
-        {isOwner&&(editMode
-          ?<div style={{display:'flex',gap:8}}>
-            <button onClick={()=>setEditMode(false)} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:8,padding:'7px 14px',fontSize:12,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>Annulla</button>
-            <button onClick={saveChar} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>Salva</button>
-          </div>
-          :<button onClick={()=>{setCharForm({...EC,...(char||{})});setEditMode(true)}} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:8,padding:'7px 14px',fontSize:12,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>Modifica</button>
-        )}
+    {tab==="scheda"&&<>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
+        {statBox("CA",p.ca||0)}
+        {statBox("Livello",p.livello||1)}
+        <div style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 8px",textAlign:"center"}}>
+          <div style={{fontSize:9,fontWeight:700,letterSpacing:".18em",textTransform:"uppercase",color:C.textDim}}>Background</div>
+          <div style={{fontFamily:"'Cinzel',serif",fontSize:13,fontWeight:700,color:C.text,marginTop:5}}>{p.background||"—"}</div>
+        </div>
       </div>
 
-      {editMode?<Card>
-        <ImgUploadChar bucket="character-images" folder="characters" currentPath={charForm.image_path} onUploaded={p=>setCharForm({...charForm,image_path:p})} label="Ritratto"/>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(min(100%,180px),1fr))',gap:'0 12px'}}>
-          {[['Nome','name'],['Classe','class'],['Razza','race'],['Background','background'],['Livello','level'],['CA','ac'],['PF attuali','hp'],['PF massimi','max_hp']].map(([l,k])=>(
-            <div key={k} style={{marginBottom:13}}>
-              <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>{l}</label>
-              <input type={['level','ac','hp','max_hp'].includes(k)?'number':'text'} value={charForm[k]} onChange={e=>setCharForm({...charForm,[k]:e.target.value})} style={inp}/>
-            </div>
-          ))}
-        </div>
-        <div style={{fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim,marginBottom:8,marginTop:4}}>Caratteristiche</div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:6,marginBottom:14}}>
-          {STATS_LIST.map(([l,k])=>(
-            <div key={k} style={{marginBottom:0}}>
-              <label style={{display:'block',fontSize:9,fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:C.textDim,textAlign:'center'}}>{l}</label>
-              <input type="number" value={charForm[k]} onChange={e=>setCharForm({...charForm,[k]:e.target.value})} style={{...inp,textAlign:'center',padding:'6px 4px'}}/>
-            </div>
-          ))}
-        </div>
-        <div style={{marginBottom:13}}>
-          <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Attacchi (Nome | Bonus | Danni)</label>
-          <textarea value={charForm.attacks} onChange={e=>setCharForm({...charForm,attacks:e.target.value})} placeholder="Spada lunga | +5 | 1d8+3" style={{...inp,minHeight:80,resize:'vertical'}}/>
-        </div>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 12px'}}>
-          <div style={{marginBottom:13}}>
-            <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Slot totali (es. 4,3,2)</label>
-            <input value={charForm.spell_slots_total} onChange={e=>setCharForm({...charForm,spell_slots_total:e.target.value})} style={inp}/>
-          </div>
-          <div style={{marginBottom:13}}>
-            <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Slot usati (es. 2,1,0)</label>
-            <input value={charForm.spell_slots_used} onChange={e=>setCharForm({...charForm,spell_slots_used:e.target.value})} style={inp}/>
-          </div>
-        </div>
-      </Card>:char?<div>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
-          {[['CA',char.ac],['Livello',char.level],['Background',char.background]].map(([l,v])=>(
-            <div key={l} style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:'12px 8px',textAlign:'center'}}>
-              <div style={{fontSize:9,fontWeight:700,letterSpacing:'.18em',textTransform:'uppercase',color:C.textDim}}>{l}</div>
-              <div style={{fontFamily:"'Cinzel',serif",fontSize:l==='Background'?13:22,fontWeight:700,color:C.text,marginTop:l==='Background'?5:3}}>{v||'—'}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* HP */}
-        <Card style={{marginBottom:12}}>
-          <div style={{fontSize:13,color:C.textDim,marginBottom:10}}>Punti Ferita</div>
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <button onClick={()=>handleHp(-1)} style={{width:36,height:36,borderRadius:'50%',border:`2px solid ${C.red}`,background:'transparent',color:C.red,fontSize:20,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700}}>−</button>
-            <input type="number" value={char.hp} onChange={e=>handleHpInput(e.target.value)} style={{fontFamily:"'Cinzel',serif",fontSize:22,fontWeight:700,color:C.text,background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:'6px 14px',minWidth:60,textAlign:'center',width:80,outline:'none'}}/>
-            <div style={{fontSize:13,color:C.textDim}}>/ {char.max_hp}</div>
-            <button onClick={()=>handleHp(1)} style={{width:36,height:36,borderRadius:'50%',border:`2px solid ${C.green}`,background:'transparent',color:C.green,fontSize:20,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,marginLeft:'auto'}}>+</button>
-          </div>
-          <div style={{height:6,background:C.bg4,borderRadius:3,overflow:'hidden',marginTop:10}}>
-            <div style={{height:'100%',width:`${hpPct}%`,background:hpColor,borderRadius:3,transition:'width .3s'}}/>
-          </div>
-        </Card>
-
-        {/* Caratteristiche */}
-        <Card style={{marginBottom:12}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:'.2em',textTransform:'uppercase',color:C.red2,marginBottom:10}}>Caratteristiche</div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:6}}>
-            {STATS_LIST.map(([l,k])=>(
-              <div key={k} style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:'10px 4px',textAlign:'center'}}>
-                <div style={{fontSize:9,fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:C.textDim}}>{l}</div>
-                <div style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.text,margin:'3px 0'}}>{char[k]||10}</div>
-                <div style={{fontSize:11,fontWeight:600,color:playerColor}}>{fmt(mod(char[k]||10))}</div>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        {/* Attacchi */}
-        {char.attacks&&<Card style={{marginBottom:12}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:'.2em',textTransform:'uppercase',color:C.red2,marginBottom:10}}>Attacchi</div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr auto auto',gap:'6px 14px',alignItems:'center'}}>
-            {['NOME','BONUS','DANNI'].map(h=><span key={h} style={{fontSize:10,fontWeight:700,color:C.textDim,letterSpacing:'.1em'}}>{h}</span>)}
-            {char.attacks.split('\n').filter(Boolean).map((atk,i)=>{
-              const [nome,bonus,danni]=atk.split('|').map(s=>s?.trim())
-              return [
-                <span key={`n${i}`} style={{fontWeight:600,color:C.text,fontSize:14}}>{nome}</span>,
-                <span key={`b${i}`} style={{color:C.green,fontWeight:700,fontSize:14}}>{bonus}</span>,
-                <span key={`d${i}`} style={{color:C.red2,fontSize:14}}>{danni}</span>
-              ]
-            })}
-          </div>
-        </Card>}
-
-        {/* Slot */}
-        {slotsT.length>0&&<Card style={{marginBottom:12}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:'.2em',textTransform:'uppercase',color:C.red2,marginBottom:10}}>Slot Incantesimo</div>
-          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-            {slotsT.map((total,i)=>{
-              const rem=total-(slotsU[i]||0)
-              return <div key={i} style={{textAlign:'center',background:C.bg3,borderRadius:8,padding:'8px 12px',minWidth:52,border:`1px solid ${C.border}`}}>
-                <div style={{fontSize:10,color:C.textDim,marginBottom:6,letterSpacing:'.08em'}}>Lv {i+1}</div>
-                <div style={{display:'flex',gap:3,justifyContent:'center',flexWrap:'wrap'}}>
-                  {Array.from({length:total}).map((_,j)=><div key={j} style={{width:10,height:10,borderRadius:'50%',background:j<rem?playerColor:C.border}}/>)}
-                </div>
-                <div style={{fontSize:11,color:C.textDim,marginTop:6}}>{rem}/{total}</div>
-              </div>
-            })}
-          </div>
-        </Card>}
-
-        {/* Monete */}
-        <Card style={{marginBottom:12}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:'.2em',textTransform:'uppercase',color:C.yellow,marginBottom:10}}>⚖ Monete</div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
-            {[['gold','MO','#d4af37'],['silver','MA','#95a5a6'],['copper','MR','#cd6133'],['platinum','MP',playerColor]].map(([k,l,col])=>(
-              <div key={k} style={{textAlign:'center',background:C.bg3,border:`1px solid ${C.border}`,borderRadius:8,padding:'10px 4px'}}>
-                <div style={{fontSize:11,fontWeight:700,color:col,marginBottom:6}}>{l}</div>
-                {isOwner
-                  ?<input type="number" min="0" value={char[k]??0} onChange={e=>handleCoin(k,e.target.value)} style={{width:'100%',textAlign:'center',padding:'4px 2px',border:`1px solid ${col}44`,borderRadius:4,fontSize:16,fontWeight:700,color:col,background:C.bg,boxSizing:'border-box',fontFamily:"'Cinzel',serif",outline:'none'}}/>
-                  :<div style={{fontSize:20,fontWeight:700,color:col}}>{char[k]??0}</div>
-                }
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>:<p style={{color:C.textMuted,fontStyle:'italic',textAlign:'center',padding:'40px 20px'}}>{isOwner?'Nessuna scheda. Clicca "Modifica" per iniziare.':'Scheda non ancora creata.'}</p>}
-    </>}
-
-    {/* INVENTARIO */}
-    {tab==='inventario'&&<div>
-      {/* Monete */}
       <Card style={{marginBottom:12}}>
-        <div style={{fontSize:10,fontWeight:700,letterSpacing:'.2em',textTransform:'uppercase',color:C.yellow,marginBottom:10}}>⚖ Monete</div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
-          {[['gold','MO','#d4af37'],['silver','MA','#95a5a6'],['copper','MR','#cd6133'],['platinum','MP',playerColor]].map(([k,l,col])=>(
-            <div key={k} style={{textAlign:'center',background:C.bg3,border:`1px solid ${C.border}`,borderRadius:8,padding:'10px 4px'}}>
-              <div style={{fontSize:11,fontWeight:700,color:col,marginBottom:6}}>{l}</div>
-              {isOwner
-                ?<input
-                    type="number" min="0"
-                    value={charForm[k]??0}
-                    onChange={e=>setCharForm(f=>({...f,[k]:parseInt(e.target.value)||0}))}
-                    onBlur={e=>handleCoin(k,e.target.value)}
-                    style={{width:'100%',textAlign:'center',padding:'4px 2px',border:`1px solid ${col}44`,borderRadius:4,fontSize:16,fontWeight:700,color:col,background:C.bg,boxSizing:'border-box',fontFamily:"'Cinzel',serif",outline:'none'}}
-                  />
-                :<div style={{fontSize:20,fontWeight:700,color:col}}>{charForm[k]??0}</div>
-              }
+        <div style={{fontSize:13,color:C.textDim,marginBottom:10}}>Punti Ferita</div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={()=>onHpChange(idx,-1)} style={{width:36,height:36,borderRadius:"50%",border:`2px solid ${C.red}`,background:"transparent",color:C.red,fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700}}>−</button>
+          <div style={{fontFamily:"'Cinzel',serif",fontSize:22,fontWeight:700,color:C.text,background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:"6px 14px",minWidth:60,textAlign:"center"}}>{p.hp}</div>
+          <div style={{fontSize:13,color:C.textDim}}>/ {p.hpMax}</div>
+          <button onClick={()=>onHpChange(idx,1)} style={{width:36,height:36,borderRadius:"50%",border:`2px solid ${C.green}`,background:"transparent",color:C.green,fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,marginLeft:"auto"}}>+</button>
+        </div>
+        <div style={{height:6,background:C.bg4,borderRadius:3,overflow:"hidden",marginTop:10}}>
+          <div style={{height:"100%",width:`${hpPct}%`,background:hpColor,borderRadius:3,transition:"width .3s"}}/>
+        </div>
+      </Card>
+
+      <Card style={{marginBottom:12}}>
+        <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.red2,marginBottom:10}}>Caratteristiche</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:6}}>
+          {["for","des","cos","int","sag","car"].map(s=>(
+            <div key={s} style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 4px",textAlign:"center"}}>
+              <div style={{fontSize:9,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:C.textDim}}>{s.toUpperCase()}</div>
+              <div style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.text,margin:"3px 0"}}>{p[s]||10}</div>
+              <div style={{fontSize:11,fontWeight:600,color:C.red2}}>{fmtMod(mod(p[s]||10))}</div>
             </div>
           ))}
         </div>
       </Card>
-      {isOwner&&<div style={{display:'flex',justifyContent:'flex-end',marginBottom:12}}>
-        <button onClick={()=>{setEditingItem(null);setItemForm(EI);setShowItemModal(true)}} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>+ Aggiungi</button>
-      </div>}
-      {inventory.length===0&&<p style={{color:C.textMuted,fontStyle:'italic',textAlign:'center',padding:'40px 20px'}}>Inventario vuoto...</p>}
-      <div style={{display:'flex',flexDirection:'column',gap:8}}>
-        {inventory.map(item=>(
-          <Card key={item.id}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
-              <div style={{flex:1}}>
-                <span style={{fontWeight:600,fontSize:15,color:C.text,fontFamily:"'Cinzel',serif"}}>{item.name}</span>
-                {item.quantity>1&&<span style={{fontSize:13,color:C.textDim,marginLeft:8}}>×{item.quantity}</span>}
-                <span style={{fontSize:10,fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',padding:'2px 7px',border:`1px solid ${C.border2}`,borderRadius:4,color:C.textDim,marginLeft:8}}>{item.type}</span>
-              </div>
-              {isOwner&&<div style={{display:'flex',gap:6,flexShrink:0}}>
-                <button onClick={()=>{setEditingItem(item);setItemForm({name:item.name,type:item.type,description:item.description||'',quantity:item.quantity});setShowItemModal(true)}} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,padding:4,color:C.textDim}}>✏️</button>
-                <button onClick={async()=>{await supabase.from('player_inventory').delete().eq('id',item.id);setInventory(inventory.filter(i=>i.id!==item.id))}} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,padding:4,color:C.textDim}}>🗑️</button>
-              </div>}
-            </div>
-            {item.description&&<p style={{margin:'6px 0 0',fontSize:13,color:C.textDim}}>{item.description}</p>}
-          </Card>
+
+      <Card>
+        <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.red2,marginBottom:10,display:"flex",justifyContent:"space-between"}}>
+          <span>Abilità</span>
+          <span style={{fontWeight:400,color:C.textMuted}}>comp +{Math.ceil((p.livello||1)/4)+1}</span>
+        </div>
+        {ABILITA.map(a=>(
+          <div key={a.n} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 2px"}}>
+            <div style={{width:14,height:14,borderRadius:"50%",border:`2px solid ${C.border2}`,flexShrink:0}}/>
+            <div style={{fontSize:13,fontWeight:600,color:C.text,width:30}}>{fmtMod(mod(p[a.s]||10))}</div>
+            <div style={{fontSize:13,color:C.textDim,flex:1}}>{a.n}</div>
+            <div style={{width:28,height:28,background:C.bg3,border:`1px solid ${C.border}`,borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:C.textMuted}}>—</div>
+          </div>
         ))}
-      </div>
-      {showItemModal&&<div onClick={()=>setShowItemModal(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.88)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(4px)'}}>
-        <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,maxWidth:480,width:'92%',maxHeight:'88vh',overflowY:'auto'}}>
-          <div style={{padding:'18px 20px 14px',borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-            <span style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.red2}}>{editingItem?'Modifica':'Nuovo Oggetto'}</span>
-            <button onClick={()=>setShowItemModal(false)} style={{background:'none',border:'none',fontSize:20,color:C.textDim,cursor:'pointer'}}>✕</button>
-          </div>
-          <div style={{padding:'18px 20px'}}>
-            {[['Nome','name'],['Quantità','quantity']].map(([l,k])=>(
-              <div key={k} style={{marginBottom:13}}>
-                <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>{l}</label>
-                <input type={k==='quantity'?'number':'text'} value={itemForm[k]} onChange={e=>setItemForm({...itemForm,[k]:e.target.value})} style={inp}/>
-              </div>
-            ))}
-            <div style={{marginBottom:13}}>
-              <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Tipo</label>
-              <select value={itemForm.type} onChange={e=>setItemForm({...itemForm,type:e.target.value})} style={{...inp,cursor:'pointer'}}>
-                {ITEM_TYPES.map(t=><option key={t} style={{background:C.bg2}}>{t}</option>)}
-              </select>
-            </div>
-            <div style={{marginBottom:13}}>
-              <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Descrizione</label>
-              <textarea value={itemForm.description} onChange={e=>setItemForm({...itemForm,description:e.target.value})} style={{...inp,minHeight:70,resize:'vertical'}}/>
-            </div>
-          </div>
-          <div style={{padding:'12px 20px 18px',display:'flex',gap:8,justifyContent:'flex-end',borderTop:`1px solid ${C.border}`}}>
-            <button onClick={()=>setShowItemModal(false)} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:8,padding:'8px 16px',fontSize:13,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>Annulla</button>
-            <button onClick={saveItem} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'8px 16px',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>Salva</button>
-          </div>
-        </div>
-      </div>}
-    </div>}
+      </Card>
+    </>}
 
-    {/* FAMIGLI */}
-    {tab==='famigli'&&<div>
-      {isOwner&&<div style={{display:'flex',justifyContent:'flex-end',marginBottom:12}}>
-        <button onClick={()=>{setEditingComp(null);setCompForm(ECP);setShowCompModal(true)}} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>+ Aggiungi</button>
-      </div>}
-      {companions.length===0&&<p style={{color:C.textMuted,fontStyle:'italic',textAlign:'center',padding:'40px 20px'}}>Nessun compagno...</p>}
-      {companions.map(c=>{
-        const cImg=getPublicUrl('character-images',c.image_path)
-        return <Card key={c.id} style={{marginBottom:10}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-            <div style={{display:'flex',alignItems:'center',gap:10}}>
-              {cImg?<img src={cImg} alt={c.name} style={{width:44,height:44,borderRadius:'50%',objectFit:'cover',border:`2px solid ${C.border2}`,flexShrink:0}}/>
-                :<div style={{width:44,height:44,borderRadius:'50%',background:C.bg3,display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,flexShrink:0,border:`2px solid ${C.border}`}}>🐾</div>}
-              <div>
-                <div style={{fontWeight:700,color:C.text,fontFamily:"'Cinzel',serif"}}>{c.name}</div>
-                <div style={{fontSize:13,color:C.textDim}}>{c.type}</div>
-              </div>
-            </div>
-            {isOwner&&<div style={{display:'flex',gap:4}}>
-              <button onClick={()=>{setEditingComp(c);setCompForm({name:c.name,type:c.type||'',hp:c.hp||'',ac:c.ac||'',notes:c.notes||'',image_path:c.image_path||''});setShowCompModal(true)}} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,padding:4,color:C.textDim}}>✏️</button>
-              <button onClick={async()=>{await supabase.from('player_companions').delete().eq('id',c.id);setCompanions(companions.filter(x=>x.id!==c.id))}} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,padding:4,color:C.textDim}}>🗑️</button>
-            </div>}
-          </div>
-          <div style={{display:'flex',gap:20,marginTop:8}}>
-            {c.hp&&<span style={{fontSize:13,color:C.textDim}}><span style={{color:C.textMuted}}>PF </span>{c.hp}</span>}
-            {c.ac&&<span style={{fontSize:13,color:C.textDim}}><span style={{color:C.textMuted}}>CA </span>{c.ac}</span>}
-          </div>
-          {c.notes&&<p style={{margin:'6px 0 0',fontSize:13,color:C.textDim}}>{c.notes}</p>}
-        </Card>
-      })}
-      {showCompModal&&<div onClick={()=>setShowCompModal(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.88)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(4px)'}}>
-        <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,maxWidth:480,width:'92%',maxHeight:'88vh',overflowY:'auto'}}>
-          <div style={{padding:'18px 20px 14px',borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-            <span style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.red2}}>{editingComp?'Modifica':'Nuovo Compagno'}</span>
-            <button onClick={()=>setShowCompModal(false)} style={{background:'none',border:'none',fontSize:20,color:C.textDim,cursor:'pointer'}}>✕</button>
-          </div>
-          <div style={{padding:'18px 20px'}}>
-            <ImgUploadChar bucket="character-images" folder="companions" currentPath={compForm.image_path} onUploaded={p=>setCompForm({...compForm,image_path:p})} label="Foto"/>
-            {[['Nome','name'],['Tipo','type'],['PF','hp'],['CA','ac']].map(([l,k])=>(
-              <div key={k} style={{marginBottom:13}}>
-                <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>{l}</label>
-                <input value={compForm[k]} onChange={e=>setCompForm({...compForm,[k]:e.target.value})} style={inp}/>
-              </div>
-            ))}
-            <div style={{marginBottom:13}}>
-              <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Note</label>
-              <textarea value={compForm.notes} onChange={e=>setCompForm({...compForm,notes:e.target.value})} style={{...inp,minHeight:70,resize:'vertical'}}/>
-            </div>
-          </div>
-          <div style={{padding:'12px 20px 18px',display:'flex',gap:8,justifyContent:'flex-end',borderTop:`1px solid ${C.border}`}}>
-            <button onClick={()=>setShowCompModal(false)} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:8,padding:'8px 16px',fontSize:13,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>Annulla</button>
-            <button onClick={saveComp} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'8px 16px',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>Salva</button>
-          </div>
-        </div>
-      </div>}
-    </div>}
+    {tab==="inventario"&&<Card>{p.inventario?.length
+      ? p.inventario.map((x,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${C.border}`}}><span style={{fontSize:14}}>{x.name}</span><span style={{fontSize:12,color:C.textDim}}>{x.detail}</span></div>)
+      : <div style={{textAlign:"center",padding:"40px 20px",color:C.textMuted,fontSize:13,fontStyle:"italic"}}>Inventario vuoto</div>
+    }</Card>}
 
-    {/* NOTE SESSIONE */}
-    {tab==='note sessione'&&<div>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
-        <span style={{fontFamily:"'Cinzel',serif",fontSize:16,fontWeight:700,color:C.red2}}>Diario di Sessione</span>
-        {isOwner&&<button onClick={()=>{setEditingNote(null);setNoteForm(EN);setShowNoteModal(true)}} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>+ Nuova</button>}
-      </div>
-      {notes.length===0&&<p style={{color:C.textMuted,fontStyle:'italic',textAlign:'center',padding:'40px 20px'}}>Il diario è vuoto...</p>}
-      {notes.map(n=>(
-        <Card key={n.id} style={{marginBottom:10,cursor:'pointer'}} onClick={()=>setExpandedNote(expandedNote===n.id?null:n.id)}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-            <div>
-              <span style={{fontWeight:700,fontSize:15,color:C.text,fontFamily:"'Cinzel',serif"}}>{n.session_title}</span>
-              {n.date&&<span style={{fontSize:12,color:C.red2,marginLeft:8}}>{n.date}</span>}
-            </div>
-            <div style={{display:'flex',gap:6,flexShrink:0}}>
-              {isOwner&&<>
-                <button onClick={e=>{e.stopPropagation();setEditingNote(n);setNoteForm({session_title:n.session_title,date:n.date||'',content:n.content||''});setShowNoteModal(true)}} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,padding:4,color:C.textDim}}>✏️</button>
-                <button onClick={e=>{e.stopPropagation();supabase.from('player_session_notes').delete().eq('id',n.id);setNotes(notes.filter(x=>x.id!==n.id))}} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,padding:4,color:C.textDim}}>🗑️</button>
-              </>}
-            </div>
-          </div>
-          {expandedNote===n.id&&<pre style={{margin:'10px 0 0',fontFamily:'inherit',fontSize:14,lineHeight:1.75,color:C.textDim,whiteSpace:'pre-wrap'}}>{n.content}</pre>}
-        </Card>
-      ))}
-      {showNoteModal&&<div onClick={()=>setShowNoteModal(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.88)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(4px)'}}>
-        <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,maxWidth:480,width:'92%',maxHeight:'88vh',overflowY:'auto'}}>
-          <div style={{padding:'18px 20px 14px',borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-            <span style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.red2}}>{editingNote?'Modifica':'Nuova Nota'}</span>
-            <button onClick={()=>setShowNoteModal(false)} style={{background:'none',border:'none',fontSize:20,color:C.textDim,cursor:'pointer'}}>✕</button>
-          </div>
-          <div style={{padding:'18px 20px'}}>
-            {[['Titolo','session_title'],['Data','date']].map(([l,k])=>(
-              <div key={k} style={{marginBottom:13}}>
-                <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>{l}</label>
-                <input value={noteForm[k]} onChange={e=>setNoteForm({...noteForm,[k]:e.target.value})} style={inp}/>
-              </div>
-            ))}
-            <div style={{marginBottom:13}}>
-              <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Note</label>
-              <textarea value={noteForm.content} onChange={e=>setNoteForm({...noteForm,content:e.target.value})} style={{...inp,minHeight:160,resize:'vertical'}}/>
-            </div>
-          </div>
-          <div style={{padding:'12px 20px 18px',display:'flex',gap:8,justifyContent:'flex-end',borderTop:`1px solid ${C.border}`}}>
-            <button onClick={()=>setShowNoteModal(false)} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:8,padding:'8px 16px',fontSize:13,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>Annulla</button>
-            <button onClick={saveNote} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'8px 16px',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>Salva</button>
-          </div>
-        </div>
-      </div>}
+    {tab==="incantesimi"&&<Card>{p.incantesimi?.length
+      ? p.incantesimi.map((x,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${C.border}`}}><span style={{fontSize:14}}>{x.name}</span><span style={{fontSize:12,color:C.textDim}}>{x.detail}</span></div>)
+      : <div style={{textAlign:"center",padding:"40px 20px",color:C.textMuted,fontSize:13,fontStyle:"italic"}}>Nessun incantesimo</div>
+    }</Card>}
+
+    {tab==="famigli"&&<Card>{p.famigli
+      ? <div style={{fontSize:14,color:C.textDim,lineHeight:1.75,fontStyle:"italic"}}>{p.famigli}</div>
+      : <div style={{textAlign:"center",padding:"40px 20px",color:C.textMuted,fontSize:13,fontStyle:"italic"}}>Nessun famiglio</div>
+    }</Card>}
+
+    {tab==="note session"&&<Card>{p.note
+      ? <div style={{fontSize:14,color:C.textDim,lineHeight:1.75,fontStyle:"italic"}}>{p.note}</div>
+      : <div style={{textAlign:"center",padding:"40px 20px",color:C.textMuted,fontSize:13,fontStyle:"italic"}}>Nessuna nota</div>
+    }</Card>}
+
+    {isAuth&&<div style={{display:"flex",gap:6,marginTop:12,justifyContent:"center"}}>
+      <Btn onClick={()=>onEdit("party",idx)}>✏ Modifica</Btn>
     </div>}
-  </div>
+  </div>;
 }
 
-// ── MAP SECTION ──
-function MapSection({isDM}){
-  const [pins,setPins]=useState([])
-  const [mapUrl,setMapUrl]=useState(null)
-  const [selected,setSelected]=useState(null)
-  const [showPinModal,setShowPinModal]=useState(false)
-  const [editingPin,setEditingPin]=useState(null)
-  const [pendingPos,setPendingPos]=useState(null)
-  const [uploading,setUploading]=useState(false)
-  const [loading,setLoading]=useState(true)
-  const imgRef=useRef()
-  const fileRef=useRef()
-
-  const PF={name:'',description:'',status:'sconosciuto'}
-  const [pinForm,setPinForm]=useState(PF)
-
-  const inp={width:'100%',boxSizing:'border-box',padding:'9px 12px',background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,fontSize:15,color:C.text,fontFamily:'inherit',outline:'none',marginTop:4}
-
-  useEffect(()=>{
-    supabase.from('map_pins').select('*').then(({data})=>setPins(data||[]))
-    supabase.from('map_config').select('map_path').eq('id',1).maybeSingle().then(({data})=>{
-      if(data?.map_path) setMapUrl(getPublicUrl('map-images',data.map_path))
-      setLoading(false)
-    })
-  },[])
-
-  const uploadMap=async(e)=>{
-    const file=e.target.files[0]; if(!file) return
-    setUploading(true)
-    const ext=file.name.split('.').pop()
-    const path=`maps/map_${Date.now()}.${ext}`
-    const {error}=await supabase.storage.from('map-images').upload(path,file)
-    if(error){alert('Errore upload: '+error.message);setUploading(false);return}
-    await supabase.from('map_config').upsert({id:1,map_path:path,updated_at:new Date().toISOString()})
-    setMapUrl(getPublicUrl('map-images',path))
-    setUploading(false)
-  }
-
-  const handleMapClick=e=>{
-    if(!isDM) return
-    const rect=e.currentTarget.getBoundingClientRect()
-    const x=Math.round(((e.clientX-rect.left)/rect.width)*100)
-    const y=Math.round(((e.clientY-rect.top)/rect.height)*100)
-    setPendingPos({x_percent:x,y_percent:y})
-    setEditingPin(null)
-    setPinForm(PF)
-    setShowPinModal(true)
-  }
-
-  const savePin=async()=>{
-    if(!pinForm.name) return
-    if(editingPin){
-      const {data}=await supabase.from('map_pins').update(pinForm).eq('id',editingPin.id).select()
-      if(data) setPins(pins.map(p=>p.id===editingPin.id?data[0]:p))
-    } else if(pendingPos){
-      const {data}=await supabase.from('map_pins').insert([{...pinForm,...pendingPos}]).select()
-      if(data) setPins([...pins,data[0]])
-    }
-    setShowPinModal(false); setPendingPos(null); setEditingPin(null)
-  }
-
-  const removePin=async(id)=>{
-    await supabase.from('map_pins').delete().eq('id',id)
-    setPins(pins.filter(p=>p.id!==id)); setSelected(null)
-  }
-
-  const pinColor=s=>({'visitato':'#2ecc71','noto':'#3498db','sconosciuto':'#8a7fa0','pericoloso':'#e74c3c'}[s]||C.textDim)
-  const LEGENDA=[['visitato','#2ecc71'],['noto','#3498db'],['sconosciuto','#8a7fa0'],['pericoloso','#e74c3c']]
-
-  if(loading) return <div style={{textAlign:'center',padding:'60px 20px',color:C.textMuted}}>Caricamento...</div>
-
-  return <div>
-    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
-      <span style={{fontFamily:"'Cinzel',serif",fontSize:16,fontWeight:700,color:C.red2}}>Mappa</span>
-      {isDM&&<div style={{display:'flex',gap:8}}>
-        <button onClick={()=>fileRef.current.click()} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:8,padding:'6px 14px',fontSize:12,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>
-          {uploading?'Caricamento...':'⬆ Carica mappa'}
-        </button>
-        <input ref={fileRef} type="file" accept="image/*" style={{display:'none'}} onChange={uploadMap}/>
-      </div>}
-    </div>
-
-    {isDM&&mapUrl&&<p style={{fontSize:12,color:C.textMuted,marginBottom:10}}>Clicca sulla mappa per aggiungere un luogo.</p>}
-
-    <div style={{position:'relative',background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,overflow:'hidden',cursor:isDM?'crosshair':'default',minHeight:300}}>
-      {mapUrl
-        ?<div onClick={handleMapClick} ref={imgRef} style={{position:'relative'}}>
-          <img src={mapUrl} alt="Mappa" style={{width:'100%',height:'auto',display:'block',userSelect:'none',pointerEvents:'none'}}/>
-          <div style={{position:'absolute',inset:0}}>
-            {pins.map(pin=>(
-              <div key={pin.id} onClick={e=>{e.stopPropagation();setSelected(pin)}}
-                style={{position:'absolute',left:`${pin.x_percent}%`,top:`${pin.y_percent}%`,transform:'translate(-50%,-50%)',cursor:'pointer',zIndex:10}}>
-                <div style={{width:14,height:14,borderRadius:'50%',background:pinColor(pin.status),border:'2px solid rgba(10,10,15,.8)',boxShadow:`0 0 8px ${pinColor(pin.status)}`}}/>
-              </div>
-            ))}
-          </div>
-        </div>
-        :<div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'60px 20px',gap:12}}>
-          <div style={{fontSize:10,fontWeight:600,letterSpacing:'.15em',textTransform:'uppercase',color:C.textMuted}}>Nessuna mappa caricata</div>
-          {isDM&&<button onClick={()=>fileRef.current.click()} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'8px 18px',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>⬆ Carica mappa</button>}
-        </div>
-      }
-    </div>
-
-    {/* Legenda */}
-    <div style={{display:'flex',gap:16,marginTop:10,flexWrap:'wrap'}}>
-      {LEGENDA.map(([label,color])=>(
-        <div key={label} style={{display:'flex',alignItems:'center',gap:5}}>
-          <div style={{width:10,height:10,borderRadius:'50%',background:color,boxShadow:`0 0 5px ${color}`}}/>
-          <span style={{fontSize:12,color:C.textDim}}>{label}</span>
-        </div>
-      ))}
-    </div>
-
-    {/* Pin detail */}
-    {selected&&<div onClick={()=>setSelected(null)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.7)',zIndex:200,display:'flex',alignItems:'flex-end',justifyContent:'center',backdropFilter:'blur(3px)'}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,borderRadius:'16px 16px 0 0',border:`1px solid ${C.border2}`,width:'100%',maxWidth:520,padding:'20px 20px 32px'}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-          <span style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.red2}}>{selected.name}</span>
-          <button onClick={()=>setSelected(null)} style={{background:'none',border:'none',fontSize:22,color:C.textDim,cursor:'pointer'}}>✕</button>
-        </div>
-        <span style={{fontSize:10,fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',padding:'2px 8px',border:`1px solid ${pinColor(selected.status)}55`,borderRadius:4,color:pinColor(selected.status)}}>{selected.status}</span>
-        {selected.description&&<p style={{fontSize:14,color:C.textDim,lineHeight:1.7,marginTop:10}}>{selected.description}</p>}
-        {isDM&&<div style={{display:'flex',gap:8,marginTop:14}}>
-          <button onClick={()=>{setEditingPin(selected);setPinForm({name:selected.name,description:selected.description||'',status:selected.status});setShowPinModal(true);setSelected(null)}} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:8,padding:'8px 14px',fontSize:13,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>✏️ Modifica</button>
-          <button onClick={()=>removePin(selected.id)} style={{background:C.redDim+'33',border:`1px solid ${C.redDim}`,borderRadius:8,padding:'8px 14px',fontSize:13,cursor:'pointer',color:C.red2,fontFamily:'inherit'}}>🗑️ Elimina</button>
-        </div>}
-      </div>
-    </div>}
-
-    {/* Pin modal */}
-    {showPinModal&&<div onClick={()=>setShowPinModal(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.88)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(4px)'}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,maxWidth:440,width:'92%'}}>
-        <div style={{padding:'18px 20px 14px',borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <span style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.red2}}>{editingPin?'Modifica luogo':'Nuovo luogo'}</span>
-          <button onClick={()=>setShowPinModal(false)} style={{background:'none',border:'none',fontSize:20,color:C.textDim,cursor:'pointer'}}>✕</button>
-        </div>
-        <div style={{padding:'18px 20px'}}>
-          <div style={{marginBottom:13}}>
-            <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Nome</label>
-            <input value={pinForm.name} onChange={e=>setPinForm({...pinForm,name:e.target.value})} style={inp}/>
-          </div>
-          <div style={{marginBottom:13}}>
-            <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Stato</label>
-            <select value={pinForm.status} onChange={e=>setPinForm({...pinForm,status:e.target.value})} style={{...inp,cursor:'pointer'}}>
-              {['visitato','noto','sconosciuto','pericoloso'].map(s=><option key={s} style={{background:C.bg2}}>{s}</option>)}
-            </select>
-          </div>
-          <div style={{marginBottom:13}}>
-            <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Descrizione</label>
-            <textarea value={pinForm.description} onChange={e=>setPinForm({...pinForm,description:e.target.value})} style={{...inp,minHeight:80,resize:'vertical'}}/>
-          </div>
-        </div>
-        <div style={{padding:'12px 20px 18px',display:'flex',gap:8,justifyContent:'flex-end',borderTop:`1px solid ${C.border}`}}>
-          <button onClick={()=>setShowPinModal(false)} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:8,padding:'8px 16px',fontSize:13,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>Annulla</button>
-          <button onClick={savePin} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'8px 16px',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>Salva</button>
-        </div>
-      </div>
-    </div>}
-  </div>
-}
-
-// ── NPC SECTION ──
-const ATTITUDE_COLORS = { Alleato:'#2ecc71', Neutrale:'#8a7fa0', Nemico:'#e74c3c', Sconosciuto:'#c084fc' }
-const VITALITY_COLORS = { vivo:'#2ecc71', morto:'#e74c3c', sconosciuto:'#8a7fa0' }
-
-function ImgUpload({ bucket, folder, currentPath, onUploaded }){
-  const [uploading, setUploading]=useState(false)
-  const ref=useRef()
-  const url=currentPath?getPublicUrl(bucket, currentPath):null
-  const handle=async(e)=>{
-    const file=e.target.files[0]; if(!file) return
-    setUploading(true)
-    const path=await uploadImage(bucket, file, folder)
-    setUploading(false)
-    if(path) onUploaded(path)
-  }
-  return (
-    <div style={{marginBottom:14}}>
-      <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim,marginBottom:6}}>Ritratto</label>
-      <div style={{display:'flex',alignItems:'center',gap:12}}>
-        {url&&<img src={url} alt="" style={{width:56,height:56,borderRadius:8,objectFit:'cover',border:`2px solid ${C.red2}`}}/>}
-        <button type="button" onClick={()=>ref.current.click()} style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:'9px 16px',fontSize:14,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>
-          {uploading?'Caricamento...':url?'Cambia':'Carica immagine'}
-        </button>
-        <input ref={ref} type="file" accept="image/*" style={{display:'none'}} onChange={handle}/>
-      </div>
-    </div>
-  )
-}
-
-function NPCCard({ npc, onSelect }){
-  const img=getPublicUrl('npc-images', npc.image_path)
-  const ac=ATTITUDE_COLORS[npc.attitude]||C.textDim
-  const vc=VITALITY_COLORS[npc.vitality]||C.textDim
-  return (
-    <div onClick={()=>onSelect(npc)} style={{display:'flex',alignItems:'center',gap:12,background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:'12px 14px',cursor:'pointer',transition:'border-color .18s'}}
-      onMouseEnter={e=>e.currentTarget.style.borderColor=C.border2}
-      onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
-      <div style={{width:48,height:48,borderRadius:'50%',border:`2px solid ${ac}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,background:C.bg3,flexShrink:0,overflow:'hidden'}}>
-        {img?<img src={img} alt={npc.name} style={{width:'100%',height:'100%',objectFit:'contain',background:C.bg2}}/>:
-          <span style={{fontFamily:"'Cinzel',serif",fontWeight:700,color:ac}}>{npc.name[0]}</span>}
-      </div>
-      <div style={{flex:1,minWidth:0}}>
-        <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{npc.name}</div>
-        <div style={{fontSize:12,color:C.textDim,marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{npc.role}</div>
-        <div style={{display:'flex',gap:5,marginTop:5,flexWrap:'wrap'}}>
-          <span style={{fontSize:10,fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',padding:'2px 7px',border:`1px solid ${ac}55`,borderRadius:4,color:ac}}>{npc.attitude}</span>
-          <span style={{fontSize:10,fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',padding:'2px 7px',border:`1px solid ${vc}55`,borderRadius:4,color:vc}}>{npc.vitality||'vivo'}</span>
-          {npc.faction&&<span style={{fontSize:10,fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',padding:'2px 7px',border:`1px solid #d4af3755`,borderRadius:4,color:'#d4af37'}}>{npc.faction}</span>}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function NPCSection({ isDM }){
-  const [npcs,setNpcs]=useState([])
-  const [selected,setSelected]=useState(null)
-  const [showModal,setShowModal]=useState(false)
-  const [editing,setEditing]=useState(null)
-  const [search,setSearch]=useState('')
-  const [filterAtt,setFilterAtt]=useState('')
-  const [loading,setLoading]=useState(true)
-  const [currentUserId,setCurrentUserId]=useState(null)
-  const [playerNotes,setPlayerNotes]=useState({}) // npcId -> {relationship, notes}
-  const [editingNote,setEditingNote]=useState(null) // npcId being edited
-  const [noteForm,setNoteForm]=useState({relationship:'',notes:''})
-  const emptyForm={name:'',role:'',attitude:'Neutrale',description:'',notes_dm:'',image_path:'',vitality:'vivo',first_location:'',current_location:'',faction:''}
-  const [form,setForm]=useState(emptyForm)
-
-  useEffect(()=>{
-    supabase.auth.getUser().then(({data:{user}})=>{
-      if(user) setCurrentUserId(user.id)
-    })
-    supabase.from('npcs').select('*').order('name').then(({data})=>{setNpcs(data||[]);setLoading(false)})
-  },[])
-
-  useEffect(()=>{
-    if(!currentUserId) return
-    supabase.from('npc_player_notes').select('*')
-      .then(({data})=>{
-        const PLAYER_IDS={
-          'Minerva':'59313926-c35d-4594-838d-ab1552bbb788',
-          'Talia':'1981309e-0111-4800-bba4-cdcaed122664'
-        }
-        const ID_TO_NAME=Object.fromEntries(Object.entries(PLAYER_IDS).map(([k,v])=>[v,k]))
-        const map={}
-        ;(data||[]).forEach(n=>{
-          if(!map[n.npc_id]) map[n.npc_id]={}
-          const playerName=ID_TO_NAME[n.player_id]||''
-          // Per la giocatrice loggata
-          if(n.player_id===currentUserId){
-            map[n.npc_id].own={relationship:n.relationship||'',notes:n.notes||'',id:n.id}
-          }
-          // Per nome giocatrice (DM view)
-          if(playerName){
-            map[n.npc_id][playerName]={relationship:n.relationship||'',notes:n.notes||''}
-          }
-        })
-        setPlayerNotes(map)
-      })
-  },[currentUserId])
-
-  const savePlayerNote=async(npcId)=>{
-    if(!currentUserId) return
-    const existing=playerNotes[npcId]?.own
-    if(existing?.id){
-      await supabase.from('npc_player_notes').update({...noteForm,updated_at:new Date().toISOString()}).eq('id',existing.id)
-    } else {
-      const {data}=await supabase.from('npc_player_notes').insert([{npc_id:npcId,player_id:currentUserId,...noteForm}]).select()
-      if(data) setPlayerNotes(p=>({...p,[npcId]:{...p[npcId],own:{...noteForm,id:data[0].id}}}))
-    }
-    setPlayerNotes(p=>({...p,[npcId]:{...p[npcId],own:{...(p[npcId]?.own||{}), ...noteForm}}}))
-    setEditingNote(null)
-  }
-
-  const openAdd=()=>{setEditing(null);setForm(emptyForm);setShowModal(true)}
-  const openEdit=(e,npc)=>{e&&e.stopPropagation();setEditing(npc);setForm({name:npc.name,role:npc.role||'',attitude:npc.attitude,description:npc.description||'',notes_dm:npc.notes_dm||'',image_path:npc.image_path||'',vitality:npc.vitality||'vivo',first_location:npc.first_location||'',current_location:npc.current_location||'',faction:npc.faction||''});setShowModal(true)}
-
-  const save=async()=>{
-    if(!form.name) return
-    if(editing){
-      const {data}=await supabase.from('npcs').update(form).eq('id',editing.id).select()
-      if(data){setNpcs(npcs.map(n=>n.id===editing.id?data[0]:n));if(selected?.id===editing.id)setSelected(data[0])}
-    } else {
-      const {data}=await supabase.from('npcs').insert([form]).select()
-      if(data) setNpcs([...npcs,data[0]].sort((a,b)=>a.name.localeCompare(b.name)))
-    }
-    setShowModal(false)
-  }
-
-  const remove=async(id)=>{await supabase.from('npcs').delete().eq('id',id);setNpcs(npcs.filter(n=>n.id!==id));setSelected(null)}
-
-  const filtered=npcs.filter(n=>(!search||n.name.toLowerCase().includes(search.toLowerCase())||(n.role||'').toLowerCase().includes(search.toLowerCase()))&&(!filterAtt||n.attitude===filterAtt))
-
-  // Group by faction
-  const groups={}
-  filtered.forEach(n=>{const k=n.faction||'— Nessuna fazione —';if(!groups[k])groups[k]=[];groups[k].push(n)})
-  const groupKeys=Object.keys(groups).sort((a,b)=>a==='— Nessuna fazione —'?1:b==='— Nessuna fazione —'?-1:a.localeCompare(b))
-
-  const inp={width:'100%',boxSizing:'border-box',padding:'9px 12px',background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,fontSize:15,color:C.text,fontFamily:'inherit',outline:'none',marginTop:4}
-  const sel={...inp,cursor:'pointer'}
-
-  if(loading) return <div style={{textAlign:'center',padding:'60px 20px',color:C.textMuted}}>Caricamento...</div>
-
-  return (
-    <div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16,gap:8}}>
-        <span style={{fontFamily:"'Cinzel',serif",fontSize:16,fontWeight:700,color:C.red2,letterSpacing:'.08em'}}>NPC</span>
-        {isDM&&<button onClick={openAdd} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>+ Aggiungi</button>}
-      </div>
-      <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>
-        <input placeholder="Cerca..." value={search} onChange={e=>setSearch(e.target.value)} style={{flex:1,minWidth:160,...inp,marginTop:0}}/>
-        <select value={filterAtt} onChange={e=>setFilterAtt(e.target.value)} style={{...sel,marginTop:0,minWidth:130,width:'auto'}}>
-          <option value="">Tutti</option>
-          {Object.keys(ATTITUDE_COLORS).map(a=><option key={a}>{a}</option>)}
-        </select>
-      </div>
-      <p style={{fontSize:12,color:C.textMuted,marginBottom:14}}>{filtered.length} personaggi</p>
-
-      {groupKeys.map(faction=>(
-        <div key={faction} style={{marginBottom:20}}>
-          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>
-            <span style={{fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:faction==='— Nessuna fazione —'?C.textMuted:'#d4af37',fontFamily:"'Cinzel',serif"}}>{faction}</span>
-            <span style={{fontSize:11,color:C.textMuted}}>({groups[faction].length})</span>
-          </div>
-          <div style={{display:'flex',flexDirection:'column',gap:8}}>
-            {groups[faction].map(n=><NPCCard key={n.id} npc={n} onSelect={setSelected}/>)}
-          </div>
-        </div>
-      ))}
-
-      {/* NPC Detail Panel */}
-      {selected&&(()=>{
-        const img=getPublicUrl('npc-images',selected.image_path)
-        const ac=ATTITUDE_COLORS[selected.attitude]||C.textDim
-        const vc=VITALITY_COLORS[selected.vitality]||C.textDim
-        return (
-          <div onClick={()=>setSelected(null)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.88)',zIndex:200,display:'flex',alignItems:'flex-end',justifyContent:'center',backdropFilter:'blur(4px)'}}>
-            <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,borderRadius:'20px 20px 0 0',border:`1px solid ${C.border2}`,width:'100%',maxWidth:640,maxHeight:'92vh',overflowY:'auto'}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'18px 20px 12px'}}>
-                <span style={{fontFamily:"'Cinzel',serif",fontSize:20,fontWeight:700,color:C.red2}}>{selected.name}</span>
-                <button onClick={()=>setSelected(null)} style={{background:'none',border:'none',fontSize:22,color:C.textDim,cursor:'pointer'}}>✕</button>
-              </div>
-              <div style={{textAlign:'center',paddingBottom:14,color:C.redDim,fontSize:12}}>✦</div>
-              {img&&<div style={{padding:'0 20px 16px'}}>
-                <img src={img} alt={selected.name} style={{width:'100%',height:'auto',borderRadius:12,border:`1px solid ${C.border2}`,display:'block',objectFit:'contain'}}/>
-              </div>}
-              <div style={{padding:'0 20px 32px'}}>
-                <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
-                  <span style={{fontSize:10,fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',padding:'2px 8px',border:`1px solid ${ac}55`,borderRadius:4,color:ac}}>{selected.attitude}</span>
-                  <span style={{fontSize:10,fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',padding:'2px 8px',border:`1px solid ${vc}55`,borderRadius:4,color:vc}}>{selected.vitality||'vivo'}</span>
-                  {selected.faction&&<span style={{fontSize:10,fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',padding:'2px 8px',border:`1px solid #d4af3755`,borderRadius:4,color:'#d4af37'}}>{selected.faction}</span>}
-                </div>
-                {selected.role&&<div style={{fontSize:13,color:C.textDim,marginBottom:8,fontStyle:'italic'}}>{selected.role}</div>}
-                {(selected.first_location||selected.current_location)&&<div style={{display:'flex',gap:16,marginBottom:12,flexWrap:'wrap'}}>
-                  {selected.first_location&&<div style={{fontSize:13,color:C.textDim}}><strong style={{color:C.text}}>Primo incontro: </strong>{selected.first_location}</div>}
-                  {selected.current_location&&<div style={{fontSize:13,color:C.textDim}}><strong style={{color:C.text}}>Posizione: </strong>{selected.current_location}</div>}
-                </div>}
-                {selected.description&&<div style={{fontSize:15,color:C.text,lineHeight:1.75}}>{selected.description}</div>}
-                {isDM&&selected.notes_dm&&<div style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:'12px 14px',marginTop:16}}>
-                  <div style={{fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.red2,marginBottom:6}}>Note DM (segrete)</div>
-                  <div style={{fontSize:14,color:C.textDim}}>{selected.notes_dm}</div>
-                </div>}
-
-                {/* Note personali giocatrice */}
-                {currentUserId&&<div style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:'12px 14px',marginTop:16}}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-                    <div style={{fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:'#c084fc'}}>📓 {isDM?'Note delle giocatrici':'Le mie note'}</div>
-                    {!isDM&&(editingNote!==selected.id
-                      ?<button onClick={()=>{setEditingNote(selected.id);setNoteForm({relationship:playerNotes[selected.id]?.own?.relationship||'',notes:playerNotes[selected.id]?.own?.notes||''})}} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:6,padding:'4px 10px',fontSize:11,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>✏️ Modifica</button>
-                      :<div style={{display:'flex',gap:6}}>
-                        <button onClick={()=>setEditingNote(null)} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:6,padding:'4px 10px',fontSize:11,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>Annulla</button>
-                        <button onClick={()=>savePlayerNote(selected.id)} style={{background:'#c084fc',color:'#fff',border:'none',borderRadius:6,padding:'4px 10px',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>Salva</button>
-                      </div>
-                    )}
-                  </div>
-
-                  {isDM
-                    // DM vede le note di tutte le giocatrici
-                    ?<div style={{display:'flex',flexDirection:'column',gap:12}}>
-                      {[{name:'Minerva',color:'#fb923c'},{name:'Talia',color:'#c084fc'}].map(p=>{
-                        const pNote=playerNotes[selected.id]?.[p.name]
-                        return <div key={p.name}>
-                          <div style={{fontSize:10,fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:p.color,marginBottom:4}}>{p.name}</div>
-                          {pNote?.relationship&&<div style={{fontSize:13,color:C.text,marginBottom:4}}><span style={{color:C.textDim}}>Relazione: </span>{pNote.relationship}</div>}
-                          {pNote?.notes&&<div style={{fontSize:13,color:C.textDim,whiteSpace:'pre-wrap'}}>{pNote.notes}</div>}
-                          {!pNote?.relationship&&!pNote?.notes&&<div style={{fontSize:12,color:C.textMuted,fontStyle:'italic'}}>Nessuna nota.</div>}
-                        </div>
-                      })}
-                    </div>
-                    // Giocatrice vede e modifica le sue note
-                    :<div>
-                      {editingNote===selected.id
-                        ?<div style={{display:'flex',flexDirection:'column',gap:10}}>
-                          <div>
-                            <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:C.textDim,marginBottom:4}}>Relazione</label>
-                            <input value={noteForm.relationship} onChange={e=>setNoteForm(f=>({...f,relationship:e.target.value}))} placeholder="Come ti senti riguardo a questo personaggio?" style={{width:'100%',boxSizing:'border-box',padding:'8px 10px',background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:8,fontSize:14,color:C.text,fontFamily:'inherit',outline:'none'}}/>
-                          </div>
-                          <div>
-                            <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:C.textDim,marginBottom:4}}>Note private</label>
-                            <textarea value={noteForm.notes} onChange={e=>setNoteForm(f=>({...f,notes:e.target.value}))} placeholder="Cosa sai di lui? Segreti, teorie..." style={{width:'100%',boxSizing:'border-box',padding:'8px 10px',background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:8,fontSize:14,color:C.text,fontFamily:'inherit',outline:'none',minHeight:80,resize:'vertical'}}/>
-                          </div>
-                        </div>
-                        :<div>
-                          {playerNotes[selected.id]?.own?.relationship&&<div style={{marginBottom:8}}>
-                            <div style={{fontSize:10,fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:C.textDim,marginBottom:3}}>Relazione</div>
-                            <div style={{fontSize:14,color:C.text}}>{playerNotes[selected.id].own.relationship}</div>
-                          </div>}
-                          {playerNotes[selected.id]?.own?.notes&&<div>
-                            <div style={{fontSize:10,fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:C.textDim,marginBottom:3}}>Note private</div>
-                            <div style={{fontSize:14,color:C.textDim,whiteSpace:'pre-wrap'}}>{playerNotes[selected.id].own.notes}</div>
-                          </div>}
-                          {!playerNotes[selected.id]?.own?.relationship&&!playerNotes[selected.id]?.own?.notes&&<div style={{fontSize:13,color:C.textMuted,fontStyle:'italic'}}>Nessuna nota ancora. Clicca "Modifica" per aggiungerne.</div>}
-                        </div>
-                      }
-                    </div>
-                  }
-                </div>}
-                {isDM&&<div style={{display:'flex',gap:8,marginTop:16}}>
-                  <button onClick={()=>openEdit(null,selected)} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:8,padding:'8px 16px',fontSize:13,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>✏️ Modifica</button>
-                  <button onClick={()=>remove(selected.id)} style={{background:C.redDim+'33',border:`1px solid ${C.redDim}`,borderRadius:8,padding:'8px 16px',fontSize:13,cursor:'pointer',color:C.red2,fontFamily:'inherit'}}>🗑️ Elimina</button>
-                </div>}
-              </div>
-            </div>
-          </div>
-        )
-      })()}
-
-      {/* Add/Edit Modal */}
-      {showModal&&(
-        <div onClick={()=>setShowModal(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.88)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(4px)'}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,maxWidth:500,width:'92%',maxHeight:'88vh',overflowY:'auto'}}>
-            <div style={{padding:'18px 20px 14px',borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-              <span style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.red2}}>{editing?'Modifica':'Nuovo Personaggio'}</span>
-              <button onClick={()=>setShowModal(false)} style={{background:'none',border:'none',fontSize:20,color:C.textDim,cursor:'pointer'}}>✕</button>
-            </div>
-            <div style={{padding:'18px 20px'}}>
-              <ImgUpload bucket="npc-images" folder="npcs" currentPath={form.image_path} onUploaded={p=>setForm({...form,image_path:p})}/>
-              {[['Nome','name','text'],['Ruolo','role','text'],['Luogo primo incontro','first_location','text'],['Posizione attuale','current_location','text'],['Fazione','faction','text']].map(([l,k])=>(
-                <div key={k} style={{marginBottom:13}}>
-                  <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>{l}</label>
-                  <input value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} style={inp}/>
-                </div>
-              ))}
-              <div style={{marginBottom:13}}>
-                <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Attitudine</label>
-                <select value={form.attitude} onChange={e=>setForm({...form,attitude:e.target.value})} style={sel}>
-                  {Object.keys(ATTITUDE_COLORS).map(a=><option key={a}>{a}</option>)}
-                </select>
-              </div>
-              <div style={{marginBottom:13}}>
-                <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Stato</label>
-                <select value={form.vitality} onChange={e=>setForm({...form,vitality:e.target.value})} style={sel}>
-                  <option value="vivo">Vivo</option>
-                  <option value="morto">Morto</option>
-                  <option value="sconosciuto">Sconosciuto</option>
-                </select>
-              </div>
-              <div style={{marginBottom:13}}>
-                <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Descrizione</label>
-                <textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})} style={{...inp,minHeight:90,resize:'vertical'}}/>
-              </div>
-              {isDM&&<div style={{marginBottom:13}}>
-                <label style={{display:'block',fontSize:10,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:C.textDim}}>Note DM (segrete)</label>
-                <textarea value={form.notes_dm} onChange={e=>setForm({...form,notes_dm:e.target.value})} style={{...inp,minHeight:80,resize:'vertical'}}/>
-              </div>}
-            </div>
-            <div style={{padding:'12px 20px 18px',display:'flex',gap:8,justifyContent:'flex-end',borderTop:`1px solid ${C.border}`}}>
-              <button onClick={()=>setShowModal(false)} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:8,padding:'8px 16px',fontSize:13,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>Annulla</button>
-              <button onClick={save} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'8px 16px',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>Salva</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── MAIN APP ──
 export default function App(){
-  const [user,setUser]=useState(null)
-  const [profile,setProfile]=useState(null)
-  const [view,setView]=useState('npc')
-  const [sidebarOpen,setSidebarOpen]=useState(false)
-  const [loading,setLoading]=useState(true)
-  const router=useRouter()
+  const [data,setData]=useState(initialData);
+  const [view,setView]=useState("mondo");
+  const [isAuth,setIsAuth]=useState(false);
+  const [sidebarOpen,setSidebarOpen]=useState(false);
+  const [showPin,setShowPin]=useState(false);
+  const [npcOpen,setNpcOpen]=useState(null);
+  const [modal,setModal]=useState(null);
 
-  // Data
-  const [sessions,setSessions]=useState([])
-  const [npcs,setNpcs]=useState([])
-  const [factions,setFactions]=useState([])
-  const [locations,setLocations]=useState([])
-  const [timeline,setTimeline]=useState([])
-  const [arcane,setArcane]=useState([])
-  const [tome,setTome]=useState([])
-  const [characters,setCharacters]=useState([])
+  const TITLES={sessioni:"Sessioni",npc:"NPC",mappa:"Mappa",fazioni:"Fazioni",mondo:"Fogli del Mondo",cronologia:"Cronologia",arcano:"Compendio Arcano",party:"Party",tomo:"Tomo Segreto",minerva:"Minerva",talia:"Talia"};
 
-  // UI
-  const [npcOpen,setNpcOpen]=useState(null)
-  const [modal,setModal]=useState(null)
-  const [modalVals,setModalVals]=useState({})
-  const [saving,setSaving]=useState(false)
+  const nav=(v)=>{setView(v);setSidebarOpen(false);};
+  const toggleDm=()=>{ if(isAuth){setIsAuth(false);}else{setShowPin(true);} };
 
-  const isDM = profile?.role==='dm' || user?.email==='master@email.com'
+  const adjustHp=(idx,delta)=>{
+    setData(d=>{
+      const party=[...d.party];
+      party[idx]={...party[idx],hp:Math.max(0,Math.min(party[idx].hpMax||999,party[idx].hp+delta))};
+      return {...d,party};
+    });
+  };
 
-  useEffect(()=>{
-    supabase.auth.getSession().then(({data:{session}})=>{
-      if(!session){router.push('/login');return}
-      setUser(session.user)
-      loadProfile(session.user.id)
-    })
-    const {data:{subscription}}=supabase.auth.onAuthStateChange((_,session)=>{
-      if(!session){router.push('/login')}
-    })
-    return ()=>subscription.unsubscribe()
-  },[])
+  const openEdit=(v,idx)=>{
+    const obj=idx!=null?{...data[v][idx]}:{};
+    setModal({view:v,idx,vals:obj});
+  };
 
-  const loadProfile=async(uid)=>{
-    const {data, error}=await supabase.from('profiles').select('*').eq('id',uid).maybeSingle()
-    console.log('Profile loaded:', data, 'Error:', error)
-    setProfile(data)
-    setLoading(false)
-    loadAll()
-  }
+  const openAdd=()=>{ if(!isAuth){setShowPin(true);return;} openEdit(view,null); };
 
-  const loadAll=useCallback(async()=>{
-    const [s,n,f,l,t,a,c,tm]=await Promise.all([
-      supabase.from('sessions').select('*').order('created_at'),
-      supabase.from('npcs').select('*').order('name'),
-      supabase.from('factions').select('*').order('name'),
-      supabase.from('locations').select('*').order('name'),
-      supabase.from('timeline').select('*').order('created_at'),
-      supabase.from('arcane').select('*').order('name'),
-      supabase.from('characters').select('*').order('name'),
-      supabase.from('tome').select('*').order('created_at'),
-    ])
-    setSessions(s.data||[])
-    setNpcs(n.data||[])
-    setFactions(f.data||[])
-    setLocations(l.data||[])
-    setTimeline(t.data||[])
-    setArcane(a.data||[])
-    setCharacters(c.data||[])
-    setTome(tm.data||[])
-  },[])
+  const saveModal=()=>{
+    const {view:v,idx,vals}=modal;
+    const numFields=["influence","hp","hpMax","ca","livello","for","des","cos","int","sag","car"];
+    const obj={...vals};
+    numFields.forEach(f=>{ if(obj[f]!==undefined) obj[f]=parseInt(obj[f])||0; });
+    if(obj.locked!==undefined) obj.locked=obj.locked==="true"||obj.locked===true;
+    setData(d=>{
+      const arr=[...d[v]];
+      if(idx!=null) arr[idx]={...arr[idx],...obj};
+      else arr.push(obj);
+      return {...d,[v]:arr};
+    });
+    setModal(null);
+  };
 
-  const logout=async()=>{
-    await supabase.auth.signOut()
-    router.push('/login')
-  }
+  const delItem=(v,idx)=>{
+    if(!window.confirm("Eliminare?"))return;
+    setData(d=>({...d,[v]:d[v].filter((_,i)=>i!==idx)}));
+  };
 
-  const nav=(v)=>{setView(v);setSidebarOpen(false)}
+  const EditBtns=({v,idx})=>isAuth?<div style={{display:"flex",gap:6,marginTop:10,paddingTop:9,borderTop:`1px solid ${C.border}`}}>
+    <Btn onClick={()=>openEdit(v,idx)}>✏ Modifica</Btn>
+    <Btn onClick={()=>delItem(v,idx)}>✕</Btn>
+  </div>:null;
 
-  // HP update
-  const handleHpChange=async(charId,delta)=>{
-    const char=characters.find(c=>c.id===charId)
-    if(!char)return
-    const newHp=Math.max(0,Math.min(char.hp_max||999,char.hp+delta))
-    setCharacters(prev=>prev.map(c=>c.id===charId?{...c,hp:newHp}:c))
-    await supabase.from('characters').update({hp:newHp}).eq('id',charId)
-  }
-
-  // MODAL SAVE
-  const openModal=(table,item=null)=>{
-    setModal({table,id:item?.id||null})
-    setModalVals(item||{})
-  }
-
-  const saveModal=async()=>{
-    setSaving(true)
-    const {table,id}=modal
-    const vals={...modalVals}
-
-    // Numeric fields
-    const nums=['level','hp','hp_max','ac','str','dex','con','int','wis','cha','influence']
-    nums.forEach(k=>{if(vals[k]!==undefined)vals[k]=parseInt(vals[k])||0})
-    if(vals.locked!==undefined)vals.locked=vals.locked==='true'||vals.locked===true
-
-    if(id){
-      await supabase.from(table).update(vals).eq('id',id)
-    } else {
-      if(table==='characters'){
-        const {data:{user:u}}=await supabase.auth.getUser()
-        vals.user_id=u.id
-      }
-      await supabase.from(table).insert(vals)
-    }
-    await loadAll()
-    setModal(null)
-    setSaving(false)
-  }
-
-  const deleteItem=async(table,id)=>{
-    if(!confirm('Eliminare?'))return
-    await supabase.from(table).delete().eq('id',id)
-    await loadAll()
-  }
-
-  const EditBtns=({table,item})=>isDM?(
-    <div style={{display:'flex',gap:6,marginTop:10,paddingTop:9,borderTop:`1px solid ${C.border}`}}>
-      <Btn onClick={()=>openModal(table,item)}>✏ Modifica</Btn>
-      <Btn onClick={()=>deleteItem(table,item.id)}>✕</Btn>
-    </div>
-  ):null
-
-  const Empty=({msg})=>(
-    <div style={{textAlign:'center',padding:'60px 20px'}}>
-      <div style={{fontSize:40,opacity:.3,marginBottom:12}}>📜</div>
-      <div style={{fontFamily:"'Cinzel',serif",fontSize:14,color:C.textMuted}}>{msg}</div>
-    </div>
-  )
-
-  // ── RENDER CONTENT ──
   const renderContent=()=>{
     switch(view){
-      case 'sessioni':
-        if(!sessions.length)return<Empty msg="Nessuna sessione ancora"/>
-        return <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:12}}>
-          {sessions.map(s=>(
-            <div key={s.id} style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:16,position:'relative',overflow:'hidden'}}>
-              <div style={{position:'absolute',top:0,left:0,width:3,height:'100%',background:C.redDim,borderRadius:'12px 0 0 12px'}}/>
-              <div style={{fontSize:10,fontWeight:600,letterSpacing:'.2em',textTransform:'uppercase',color:C.redDim}}>Sessione {s.num}</div>
-              <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text,margin:'5px 0 7px'}}>{s.title}</div>
-              <div style={{fontSize:13,color:C.textDim,lineHeight:1.55,fontStyle:'italic'}}>{s.excerpt}</div>
+      case "sessioni": return !data.sessioni.length?<EmptyState msg="Nessuna sessione ancora"/>:
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
+          {data.sessioni.map((s,i)=>(
+            <div key={i} style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:16,position:"relative",overflow:"hidden"}}>
+              <div style={{position:"absolute",top:0,left:0,width:3,height:"100%",background:C.redDim,borderRadius:"12px 0 0 12px"}}/>
+              <div style={{fontSize:10,fontWeight:600,letterSpacing:".2em",textTransform:"uppercase",color:C.redDim}}>{s.num?`Sessione ${s.num}`:""}</div>
+              <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text,margin:"5px 0 7px"}}>{s.title}</div>
+              <div style={{fontSize:13,color:C.textDim,lineHeight:1.55,fontStyle:"italic"}}>{s.excerpt}</div>
               <div style={{fontSize:11,color:C.textMuted,marginTop:8}}>{s.date}</div>
-              <EditBtns table="sessions" item={s}/>
+              <EditBtns v="sessioni" idx={i}/>
             </div>
           ))}
+        </div>;
+
+      case "npc": return !data.npc.length?<EmptyState msg="Nessun NPC ancora"/>:
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {data.npc.map((n,i)=>(
+            <div key={i} style={{display:"flex",alignItems:"center",gap:12,background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",cursor:"pointer"}} onClick={()=>setNpcOpen(n)}>
+              <div style={{width:48,height:48,borderRadius:10,background:C.bg3,border:`1px solid ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0,overflow:"hidden"}}>
+                {n.img?<img src={n.img} alt={n.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:(n.icon||"👤")}
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{n.name}</div>
+                <div style={{fontSize:12,color:C.textDim,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.role}</div>
+                <div style={{display:"flex",gap:5,marginTop:5,flexWrap:"wrap"}}>
+                  {n.tag&&<Tag t={n.tag}/>}{n.stato&&<Tag t={n.stato}/>}
+                </div>
+              </div>
+              {isAuth&&<div onClick={e=>{e.stopPropagation();}} style={{display:"flex",flexDirection:"column",gap:4}}>
+                <Btn onClick={()=>openEdit("npc",i)}>✏</Btn>
+                <Btn onClick={()=>delItem("npc",i)}>✕</Btn>
+              </div>}
+            </div>
+          ))}
+        </div>;
+
+      case "mappa": return <div>
+        <div style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,height:420,display:"flex",alignItems:"center",justifyContent:"center",position:"relative",overflow:"hidden"}}>
+          <div style={{fontSize:10,fontWeight:600,letterSpacing:".15em",textTransform:"uppercase",color:C.textMuted}}>Carica mappa personalizzata</div>
         </div>
+        {isAuth&&<div style={{marginTop:10}}><Btn onClick={openAdd} primary>+ Aggiungi Luogo</Btn></div>}
+      </div>;
 
-      case 'npc': return <NPCSection isDM={isDM} key="npc"/>
-
-      case 'fazioni':
-        if(!factions.length)return<Empty msg="Nessuna fazione ancora"/>
-        return <div style={{display:'flex',flexDirection:'column',gap:10}}>
-          {factions.map(f=>(
-            <div key={f.id} style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:14,display:'flex',gap:12}}>
-              <div style={{width:44,height:44,background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,flexShrink:0}}>{f.icon||'⚔️'}</div>
+      case "fazioni": return !data.fazioni.length?<EmptyState msg="Nessuna fazione ancora"/>:
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {data.fazioni.map((f,i)=>(
+            <div key={i} style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:14,display:"flex",gap:12}}>
+              <div style={{width:44,height:44,background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{f.icon||"⚔️"}</div>
               <div style={{flex:1}}>
                 <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{f.name}</div>
-                <div style={{fontSize:12,color:C.textDim,fontStyle:'italic',margin:'3px 0 7px',lineHeight:1.5}}>{f.description}</div>
-                <div style={{height:3,background:C.bg3,borderRadius:2,overflow:'hidden',marginTop:6}}>
-                  <div style={{height:'100%',width:`${f.influence||0}%`,background:`linear-gradient(90deg,${C.redDim},${C.red2})`}}/>
+                <div style={{fontSize:12,color:C.textDim,fontStyle:"italic",margin:"3px 0 7px",lineHeight:1.5}}>{f.desc}</div>
+                <div style={{height:3,background:C.bg3,borderRadius:2,overflow:"hidden",marginTop:6}}>
+                  <div style={{height:"100%",width:`${f.influence||0}%`,background:`linear-gradient(90deg,${C.redDim},${C.red2})`}}/>
                 </div>
                 <div style={{fontSize:10,color:C.textMuted,marginTop:3}}>Influenza: {f.influence||0}%</div>
-                <EditBtns table="factions" item={f}/>
+                <EditBtns v="fazioni" idx={i}/>
               </div>
             </div>
           ))}
-        </div>
+        </div>;
 
-      case 'mondo':
-        if(!locations.length)return<Empty msg="Nessun luogo ancora"/>
-        return <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:12}}>
-          {locations.map(w=>(
-            <div key={w.id} style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,overflow:'hidden'}}>
-              <div style={{height:76,background:C.bg3,display:'flex',alignItems:'center',justifyContent:'center',fontSize:30,borderBottom:`1px solid ${C.border}`}}>{w.icon||'🌍'}</div>
+      case "mondo": return !data.mondo.length?<EmptyState msg="Nessun luogo ancora"/>:
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:12}}>
+          {data.mondo.map((w,i)=>(
+            <div key={i} style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
+              <div style={{height:76,background:C.bg3,display:"flex",alignItems:"center",justifyContent:"center",fontSize:30,borderBottom:`1px solid ${C.border}`}}>{w.icon||"🌍"}</div>
               <div style={{padding:12}}>
                 <div style={{fontFamily:"'Cinzel',serif",fontSize:12,fontWeight:600,color:C.text}}>{w.name}</div>
-                <div style={{fontSize:11,color:C.textDim,fontStyle:'italic',marginTop:3,lineHeight:1.4}}>{w.description}</div>
-                <EditBtns table="locations" item={w}/>
+                <div style={{fontSize:11,color:C.textDim,fontStyle:"italic",marginTop:3,lineHeight:1.4}}>{w.sub}</div>
+                <EditBtns v="mondo" idx={i}/>
               </div>
             </div>
           ))}
-        </div>
+        </div>;
 
-      case 'cronologia':
-        if(!timeline.length&&!isDM)return<Empty msg="Nessun evento ancora"/>
-        return <div>
-          {isDM&&<div style={{display:'flex',justifyContent:'flex-end',marginBottom:14}}>
-            <button onClick={()=>openModal('timeline',null)} style={{background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>+ Aggiungi</button>
-          </div>}
-          {timeline.length===0&&<Empty msg="Nessun evento ancora"/>}
-          <div style={{position:'relative',paddingLeft:26}}>
-            <div style={{position:'absolute',left:5,top:0,bottom:0,width:1,background:`linear-gradient(to bottom,${C.redDim},transparent)`}}/>
-            {timeline.map(t=>{
-              const tImg=getPublicUrl('timeline-images',t.image_path)
-              return <div key={t.id} style={{position:'relative',paddingLeft:16,paddingBottom:24}}>
-                <div style={{position:'absolute',left:-21,top:5,width:8,height:8,border:`1px solid ${C.redDim}`,background:C.bg,transform:'rotate(45deg)'}}/>
-                <div style={{fontSize:10,fontWeight:600,letterSpacing:'.15em',textTransform:'uppercase',color:C.redDim,marginBottom:3}}>{t.date}</div>
-                <div style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.text,marginBottom:10}}>{t.title}</div>
-                {tImg&&<img src={tImg} alt={t.title} style={{width:'100%',maxWidth:480,height:220,objectFit:'cover',borderRadius:10,border:`1px solid ${C.border}`,marginBottom:10,display:'block'}}/>}
-                <div style={{fontSize:14,color:C.textDim,fontStyle:'italic',lineHeight:1.75}}>{t.description}</div>
-                {isDM&&<div style={{display:'flex',gap:6,marginTop:8}}>
-                  <button onClick={()=>openModal('timeline',t)} style={{background:'transparent',border:`1px solid ${C.border2}`,borderRadius:6,padding:'4px 10px',fontSize:11,cursor:'pointer',color:C.textDim,fontFamily:'inherit'}}>✏️</button>
-                  <button onClick={()=>deleteItem('timeline',t.id)} style={{background:'transparent',border:`1px solid ${C.redDim}`,borderRadius:6,padding:'4px 10px',fontSize:11,cursor:'pointer',color:C.red2,fontFamily:'inherit'}}>🗑️</button>
-                </div>}
-              </div>
-            })}
-          </div>
-        </div>
+      case "cronologia": return !data.cronologia.length?<EmptyState msg="Nessun evento ancora"/>:
+        <div style={{position:"relative",paddingLeft:26}}>
+          <div style={{position:"absolute",left:5,top:0,bottom:0,width:1,background:`linear-gradient(to bottom,${C.redDim},transparent)`}}/>
+          {data.cronologia.map((c,i)=>(
+            <div key={i} style={{position:"relative",paddingLeft:16,paddingBottom:20}}>
+              <div style={{position:"absolute",left:-21,top:5,width:8,height:8,border:`1px solid ${C.redDim}`,background:C.bg,transform:"rotate(45deg)"}}/>
+              <div style={{fontSize:10,fontWeight:600,letterSpacing:".15em",textTransform:"uppercase",color:C.redDim,marginBottom:3}}>{c.date}</div>
+              <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text,marginBottom:4}}>{c.title}</div>
+              <div style={{fontSize:13,color:C.textDim,fontStyle:"italic",lineHeight:1.55}}>{c.desc}</div>
+              <EditBtns v="cronologia" idx={i}/>
+            </div>
+          ))}
+        </div>;
 
-      case 'arcano':
-        if(!arcane.length)return<Empty msg="Nessun elemento arcano ancora"/>
-        return <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:12}}>
-          {arcane.map(a=>(
-            <div key={a.id} style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:16,textAlign:'center'}}>
-              <div style={{fontSize:28,marginBottom:8}}>{a.icon||'✨'}</div>
+      case "arcano": return !data.arcano.length?<EmptyState msg="Nessun elemento arcano ancora"/>:
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12}}>
+          {data.arcano.map((a,i)=>(
+            <div key={i} style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:16,textAlign:"center"}}>
+              <div style={{fontSize:28,marginBottom:8}}>{a.icon||"✨"}</div>
               <div style={{fontFamily:"'Cinzel',serif",fontSize:13,fontWeight:600,color:C.text,marginBottom:3}}>{a.name}</div>
-              <div style={{fontSize:10,fontWeight:600,letterSpacing:'.15em',textTransform:'uppercase',color:C.redDim,marginBottom:7}}>{a.school}</div>
-              <div style={{fontSize:12,color:C.textDim,fontStyle:'italic',lineHeight:1.5}}>{a.description}</div>
-              <EditBtns table="arcane" item={a}/>
+              <div style={{fontSize:10,fontWeight:600,letterSpacing:".15em",textTransform:"uppercase",color:C.redDim,marginBottom:7}}>{a.school}</div>
+              <div style={{fontSize:12,color:C.textDim,fontStyle:"italic",lineHeight:1.5}}>{a.desc}</div>
+              <EditBtns v="arcano" idx={i}/>
             </div>
           ))}
-        </div>
+        </div>;
 
-      case 'party':
-        if(!characters.length)return<Empty msg="Nessun personaggio"/>
-        return <div style={{display:'flex',flexDirection:'column',gap:10}}>
-          {characters.map(p=>(
-            <div key={p.id} onClick={()=>nav(p.name.toLowerCase())} style={{display:'flex',alignItems:'center',gap:12,background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:'12px 14px',cursor:'pointer'}}>
-              <div style={{width:44,height:44,borderRadius:'50%',border:`2px solid ${p.color||'#c084fc'}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,background:C.bg3,flexShrink:0}}>{p.icon||'🛡️'}</div>
-              <div>
-                <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{p.name}</div>
-                <div style={{fontSize:12,color:C.textDim,marginTop:2}}>{p.class} {p.race}</div>
-              </div>
-              <div style={{marginLeft:'auto',fontSize:12,fontWeight:600,color:p.color||'#c084fc'}}>HP {p.hp}/{p.hp_max}</div>
-            </div>
-          ))}
-        </div>
-
-      case 'tomo':
-        if(!isDM)return<Empty msg="Accesso riservato al DM"/>
-        return <div>
-          <div style={{textAlign:'center',padding:'16px 0 24px'}}>
-            <div style={{fontFamily:"'Cinzel Decorative',serif",fontSize:18,fontWeight:700,color:C.red2,textShadow:`0 0 24px rgba(192,57,43,.4)`}}>Tomo Segreto</div>
-            <div style={{fontSize:10,fontWeight:600,letterSpacing:'.2em',textTransform:'uppercase',color:C.textMuted,marginTop:4}}>Solo DM</div>
+      case "party": return <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {data.party.map((p,i)=>(
+          <div key={i} onClick={()=>nav(p.name.toLowerCase())} style={{display:"flex",alignItems:"center",gap:12,background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",cursor:"pointer"}}>
+            <div style={{width:44,height:44,borderRadius:"50%",border:`2px solid ${p.color}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,background:C.bg3,flexShrink:0}}>{p.icon||"🛡️"}</div>
+            <div><div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{p.name}</div><div style={{fontSize:12,color:C.textDim,marginTop:2}}>{p.sub}</div></div>
+            <div style={{marginLeft:"auto",fontSize:12,fontWeight:600,color:p.color}}>HP {p.hp}/{p.hpMax}</div>
           </div>
-          {!tome.length?<Empty msg="Nessun segreto ancora"/>:tome.map(t=>(
-            <div key={t.id} style={{background:C.bg2,border:`1px solid ${C.border}`,borderLeft:`3px solid ${C.redDim}`,borderRadius:12,padding:'14px 16px',marginBottom:10}}>
-              <div style={{fontFamily:"'Cinzel',serif",fontSize:13,fontWeight:600,color:C.text,marginBottom:7}}>{t.title}</div>
-              {t.locked
-                ?<><div style={{fontSize:13,color:C.textDim,fontStyle:'italic'}}>[SIGILLATO]</div><span style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:10,fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:C.redDim,border:`1px solid ${C.redDim}`,borderRadius:5,padding:'2px 8px',marginTop:7}}>🔒 Bloccato</span></>
-                :<div style={{fontSize:13,color:C.textDim,fontStyle:'italic',lineHeight:1.65}}>{t.content}</div>
-              }
-              <EditBtns table="tome" item={t}/>
-            </div>
-          ))}
+        ))}
+      </div>;
+
+      case "tomo": return <div>
+        <div style={{textAlign:"center",padding:"16px 0 24px"}}>
+          <div style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.red2,textShadow:`0 0 24px rgba(192,57,43,.4)`}}>Tomo Segreto</div>
+          <div style={{fontSize:10,fontWeight:600,letterSpacing:".2em",textTransform:"uppercase",color:C.textMuted,marginTop:4}}>Solo DM</div>
         </div>
+        {!data.tomo.length?<EmptyState msg="Nessun segreto ancora"/>:data.tomo.map((t,i)=>(
+          <div key={i} style={{background:C.bg2,border:`1px solid ${C.border}`,borderLeft:`3px solid ${C.redDim}`,borderRadius:12,padding:"14px 16px",marginBottom:10}}>
+            <div style={{fontFamily:"'Cinzel',serif",fontSize:13,fontWeight:600,color:C.text,marginBottom:7}}>{t.title}</div>
+            {t.locked?<><div style={{fontSize:13,color:C.textDim,fontStyle:"italic"}}>[SIGILLATO]</div><span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:600,letterSpacing:".1em",textTransform:"uppercase",color:C.redDim,border:`1px solid ${C.redDim}`,borderRadius:5,padding:"2px 8px",marginTop:7}}>🔒 Bloccato</span></>
+              :<div style={{fontSize:13,color:C.textDim,fontStyle:"italic",lineHeight:1.65}}>{t.text}</div>}
+            <EditBtns v="tomo" idx={i}/>
+          </div>
+        ))}
+      </div>;
 
-      case 'oracolo': return <Oracle npcs={npcs} timeline={timeline} factions={factions} key="oracolo"/>
-
-      case 'dadi': return <DiceRoller key="dadi"/>
-
-      case 'mappa': return <MapSection isDM={isDM} key="mappa"/>
-
-      default:{
-        const playerName = view
-        if(playerName==='minerva'||playerName==='talia'){
-          const charNameMatch = profile?.character_name?.toLowerCase()===playerName
-          const emailMatch = user?.email?.toLowerCase().includes(playerName)
-          if(!isDM && !charNameMatch && !emailMatch)
-            return<Empty msg="Accesso non autorizzato"/>
-          const playerProfile = [{name:'Minerva',color:'#fb923c'},{name:'Talia',color:'#c084fc'}].find(p=>p.name.toLowerCase()===playerName)
-          return <PlayerSheet playerName={playerName} playerColor={playerProfile?.color||C.red2} isOwner={isDM || charNameMatch || emailMatch}/>
-        }
-        return<Empty msg="Sezione non trovata"/>
-      }
+      case "minerva": { const i=data.party.findIndex(p=>p.name.toLowerCase()==="minerva"); return i>=0?<CharSheet p={data.party[i]} idx={i} isAuth={isAuth} onEdit={openEdit} onHpChange={adjustHp}/>:<EmptyState msg="Personaggio non trovato"/>; }
+      case "talia":   { const i=data.party.findIndex(p=>p.name.toLowerCase()==="talia");   return i>=0?<CharSheet p={data.party[i]} idx={i} isAuth={isAuth} onEdit={openEdit} onHpChange={adjustHp}/>:<EmptyState msg="Personaggio non trovato"/>; }
+      default: return <EmptyState msg="In costruzione"/>;
     }
-  }
-
-  const TITLES={sessioni:'Sessioni',npc:'NPC',mappa:'Mappa',fazioni:'Fazioni',mondo:'Fogli del Mondo',cronologia:'Cronologia',arcano:'Compendio Arcano',party:'Party',tomo:'Tomo Segreto'}
-
-  // Modal fields per tabella
-  const FIELDS={
-    sessions:[
-      {id:'num',l:'Numero',ph:'es. I'},{id:'title',l:'Titolo',ph:'Titolo...'},{id:'date',l:'Data',ph:'es. 1 Gen 2025'},{id:'excerpt',l:'Riassunto',ph:'Cosa è successo...',ta:true},{id:'content',l:'Contenuto completo',ph:'...',ta:true}
-    ],
-    npcs:[
-      {id:'name',l:'Nome',ph:'Nome'},{id:'role',l:'Ruolo',ph:'es. Mercante'},{id:'icon',l:'Icona',ph:'👤'},{id:'description',l:'Descrizione',ph:'Chi è?',ta:true},{id:'notes_dm',l:'Note DM (segrete)',ph:'Segreti...',ta:true},{id:'primo_incontro',l:'Primo incontro',ph:'es. Aldermoor'},{id:'img_url',l:'URL Immagine',ph:'https://...'},{id:'attitude',l:'Attitudine',sel:['Sconosciuto','Alleato','Neutrale','Nemico']},{id:'stato',l:'Stato',sel:['vivo','morto','']}
-    ],
-    factions:[
-      {id:'name',l:'Nome',ph:'Nome'},{id:'icon',l:'Icona',ph:'⚔️'},{id:'description',l:'Descrizione',ph:'...',ta:true},{id:'influence',l:'Influenza %',ph:'0-100'}
-    ],
-    locations:[
-      {id:'name',l:'Nome',ph:'Nome'},{id:'icon',l:'Icona',ph:'🏰'},{id:'description',l:'Descrizione',ph:'...',ta:true}
-    ],
-    timeline:[
-      {id:'date',l:'Data',ph:'Anno 1, Giorno X'},{id:'title',l:'Titolo',ph:'Evento...'},{id:'description',l:'Descrizione',ph:'Cosa accadde...',ta:true}
-    ],
-    arcane:[
-      {id:'name',l:'Nome',ph:'Nome'},{id:'icon',l:'Icona',ph:'✨'},{id:'school',l:'Scuola',ph:'Proibito'},{id:'description',l:'Descrizione',ph:'...',ta:true}
-    ],
-    characters:[
-      {id:'name',l:'Nome',ph:'Nome'},{id:'class',l:'Classe',ph:'Guerriero'},{id:'race',l:'Razza',ph:'Umano'},{id:'icon',l:'Icona',ph:'🛡️'},{id:'color',l:'Colore',ph:'#c084fc'},{id:'ac',l:'CA',ph:'15'},{id:'level',l:'Livello',ph:'1'},{id:'background',l:'Background',ph:'Soldato'},{id:'hp',l:'HP Attuali',ph:'0'},{id:'hp_max',l:'HP Massimi',ph:'10'},{id:'str',l:'Forza',ph:'10'},{id:'dex',l:'Destrezza',ph:'10'},{id:'con',l:'Costituzione',ph:'10'},{id:'int',l:'Intelligenza',ph:'10'},{id:'wis',l:'Saggezza',ph:'10'},{id:'cha',l:'Carisma',ph:'10'},{id:'note',l:'Note',ph:'...',ta:true},{id:'inventario',l:'Inventario',ph:'...',ta:true},{id:'incantesimi',l:'Incantesimi',ph:'...',ta:true},{id:'famigli',l:'Famigli',ph:'...',ta:true}
-    ],
-    tome:[
-      {id:'title',l:'Titolo',ph:'Segreto...'},{id:'content',l:'Contenuto',ph:'...',ta:true},{id:'locked',l:'Bloccato?',sel:['false','true']}
-    ],
-  }
-
-  if(loading)return(
-    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:C.bg}}>
-      <div style={{fontFamily:"'Cinzel',serif",color:C.red2,fontSize:16,letterSpacing:'.1em'}}>Caricamento...</div>
-    </div>
-  )
+  };
 
   const navItems=[
-    {v:'npc',icon:'👤',l:'NPC'},
-    {v:'mappa',icon:'🗺️',l:'Mappa'},
-    {v:'fazioni',icon:'⚔️',l:'Fazioni'},
-    {v:'cronologia',icon:'⏳',l:'Cronologia'},
-    {v:'dadi',icon:'🎲',l:'Tira Dadi'},
-    {v:'oracolo',icon:'🔮',l:'Oracolo'},
-  ]
+    {v:"sessioni",icon:"📜",label:"Sessioni"},{v:"npc",icon:"👤",label:"NPC"},
+    {v:"mappa",icon:"🗺️",label:"Mappa"},{v:"fazioni",icon:"⚔️",label:"Fazioni"},
+    {v:"mondo",icon:"🌍",label:"Fogli del Mondo"},{v:"cronologia",icon:"⏳",label:"Cronologia"},
+    {v:"arcano",icon:"✨",label:"Compendio Arcano"},{v:"party",icon:"🛡️",label:"Party"},
+  ];
 
-  const playerColors={'minerva':'#c084fc','talia':'#fb923c'}
+  return <div style={{display:"flex",height:"100vh",overflow:"hidden",background:C.bg,color:C.text,fontFamily:"'Inter',sans-serif"}}>
 
-  return (
-    <div style={{display:'flex',height:'100vh',overflow:'hidden',background:C.bg}}>
+    {sidebarOpen&&<div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:49,backdropFilter:"blur(3px)"}}/>}
 
-      {/* Overlay */}
-      {sidebarOpen&&<div onClick={()=>setSidebarOpen(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.7)',zIndex:49,backdropFilter:'blur(3px)'}}/>}
-
-      {/* SIDEBAR */}
-      <aside style={{width:260,background:C.panel||'#110e18',borderRight:`1px solid ${C.border}`,display:'flex',flexDirection:'column',flexShrink:0,overflowY:'auto',position:'fixed',top:0,left:0,bottom:0,zIndex:50,transform:sidebarOpen?'translateX(0)':'translateX(-100%)',transition:'transform .3s cubic-bezier(.4,0,.2,1)',boxShadow:sidebarOpen?'4px 0 24px rgba(0,0,0,.7)':'none'}}>
-        <div style={{padding:'22px 18px 18px',borderBottom:`1px solid ${C.border}`}}>
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <div style={{width:32,height:32,borderRadius:'50%',background:`radial-gradient(circle at 35% 35%,${C.red2},${C.redDim})`,boxShadow:`0 0 16px rgba(192,57,43,.4)`,flexShrink:0}}/>
-            <div>
-              <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:700,color:C.text}}>House Valerius</div>
-              <div style={{fontSize:11,color:C.textMuted,marginTop:2}}>{isDM?'DM · Dungeon Master':profile?.character_name||'Giocatore'}</div>
-            </div>
+    <aside style={{width:260,background:C.panel,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0,overflowY:"auto",position:"fixed",top:0,left:0,bottom:0,zIndex:50,transform:sidebarOpen?"translateX(0)":"translateX(-100%)",transition:"transform .3s cubic-bezier(.4,0,.2,1)"}}>
+      <div style={{padding:"22px 18px 18px",borderBottom:`1px solid ${C.border}`}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:32,height:32,borderRadius:"50%",background:`radial-gradient(circle at 35% 35%,${C.red2},${C.redDim})`,boxShadow:`0 0 16px rgba(192,57,43,.4)`,flexShrink:0}}/>
+          <div>
+            <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:700,color:C.text,letterSpacing:".04em"}}>Terre Perdute</div>
+            <div style={{fontSize:11,color:C.textMuted,letterSpacing:".08em",marginTop:2}}>DM · Dungeon Master</div>
           </div>
-        </div>
-
-        <div style={{padding:'14px 0 6px'}}>
-          <div style={{fontSize:10,fontWeight:600,letterSpacing:'.18em',textTransform:'uppercase',color:C.textMuted,padding:'0 18px 6px'}}>La Campagna</div>
-          {navItems.map(({v,icon,l})=>(
-            <div key={v} onClick={()=>nav(v)} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 18px',cursor:'pointer',fontSize:13,fontWeight:view===v?500:400,color:view===v?C.red2:C.textDim,background:view===v?'rgba(192,57,43,.1)':'transparent',borderLeft:`2px solid ${view===v?C.red:'transparent'}`}}>
-              <span style={{fontSize:14,width:18,textAlign:'center'}}>{icon}</span>{l}
-            </div>
-          ))}
-          {isDM&&(
-            <div onClick={()=>nav('tomo')} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 18px',cursor:'pointer',fontSize:13,color:view==='tomo'?C.red2:C.textDim,background:view==='tomo'?'rgba(192,57,43,.1)':'transparent',borderLeft:`2px solid ${view==='tomo'?C.red:'transparent'}`}}>
-              <span style={{fontSize:14,width:18,textAlign:'center'}}>🔒</span>Tomo Segreto
-            </div>
-          )}
-        </div>
-
-        <div style={{height:1,background:C.border,margin:'6px 18px'}}/>
-        <div style={{padding:'14px 0 6px'}}>
-          <div style={{fontSize:10,fontWeight:600,letterSpacing:'.18em',textTransform:'uppercase',color:C.textMuted,padding:'0 18px 6px'}}>La Compagnia</div>
-          {[{name:'Minerva',color:'#fb923c'},{name:'Talia',color:'#c084fc'}].map(p=>(
-            <div key={p.name} onClick={()=>nav(p.name.toLowerCase())} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 18px',cursor:'pointer',fontSize:13,color:view===p.name.toLowerCase()?C.red2:C.textDim,background:view===p.name.toLowerCase()?'rgba(192,57,43,.1)':'transparent',borderLeft:`2px solid ${view===p.name.toLowerCase()?C.red:'transparent'}`}}>
-              <span style={{width:8,height:8,borderRadius:'50%',background:p.color,flexShrink:0,display:'inline-block'}}/>
-              {p.name}
-            </div>
-          ))}
-        </div>
-
-        <div style={{marginTop:'auto',padding:'14px 18px',borderTop:`1px solid ${C.border}`}}>
-          <button onClick={logout} style={{width:'100%',padding:'8px',background:'transparent',border:`1px solid ${C.border2}`,borderRadius:8,color:C.textDim,fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
-            Esci
-          </button>
-        </div>
-      </aside>
-
-      {/* MAIN */}
-      <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 20px',borderBottom:`1px solid ${C.border}`,background:C.bg2,gap:10,flexShrink:0}}>
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <button onClick={()=>setSidebarOpen(o=>!o)} style={{background:'none',border:`1px solid ${C.border2}`,borderRadius:8,color:C.textDim,fontSize:16,width:36,height:36,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}}>☰</button>
-            <div style={{width:26,height:26,borderRadius:'50%',background:`radial-gradient(circle at 35% 35%,${C.red2},${C.redDim})`,boxShadow:`0 0 10px rgba(192,57,43,.4)`,flexShrink:0}}/>
-            <span style={{fontFamily:"'Cinzel',serif",fontSize:16,fontWeight:600,color:C.red2,letterSpacing:'.06em'}}>{TITLES[view]||view.charAt(0).toUpperCase()+view.slice(1)}</span>
-          </div>
-          {isDM&&view!=='npc'&&view!=='cronologia'&&(
-            <button onClick={()=>openModal(
-              view==='sessioni'?'sessions':
-              view==='fazioni'?'factions':
-              view==='mondo'?'locations':
-              view==='arcano'?'arcane':
-              view==='tomo'?'tome':'sessions'
-            )} style={{fontSize:12,fontWeight:600,padding:'6px 14px',borderRadius:8,background:C.red,color:'#fff',border:'none',cursor:'pointer'}}>+ Aggiungi</button>
-          )}
-        </div>
-        <div style={{flex:1,overflowY:'auto',padding:20}}>
-          {renderContent()}
         </div>
       </div>
 
-      {/* NPC PANEL */}
-      <NpcPanel npc={npcOpen} onClose={()=>setNpcOpen(null)}/>
+      <div style={{padding:"14px 0 6px"}}>
+        <div style={{fontSize:10,fontWeight:600,letterSpacing:".18em",textTransform:"uppercase",color:C.textMuted,padding:"0 18px 6px"}}>La Campagna</div>
+        {navItems.map(({v,icon,label})=>(
+          <div key={v} onClick={()=>nav(v)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 18px",cursor:"pointer",fontSize:13,fontWeight:view===v?500:400,color:view===v?C.red2:C.textDim,background:view===v?`rgba(192,57,43,.1)`:"transparent",borderLeft:`2px solid ${view===v?C.red:"transparent"}`,userSelect:"none"}}>
+            <span style={{fontSize:14,width:18,textAlign:"center"}}>{icon}</span>{label}
+          </div>
+        ))}
+      </div>
 
-      {/* MODAL */}
-      {modal&&(
-        <Modal title={modal.id?'Modifica':'Aggiungi'} onClose={()=>setModal(null)} onSave={saveModal}>
-          {modal.table==='timeline'&&<ImgUpload bucket="timeline-images" folder="timeline" currentPath={modalVals.image_path||''} onUploaded={p=>setModalVals(prev=>({...prev,image_path:p}))}/>}
-          {(FIELDS[modal.table]||[]).map(f=>(
-            <FormField
-              key={f.id}
-              label={f.l}
-              id={f.id}
-              value={modalVals[f.id]||''}
-              onChange={v=>setModalVals(prev=>({...prev,[f.id]:v}))}
-              textarea={f.ta}
-              select={f.sel}
-              placeholder={f.ph}
-            />
-          ))}
-          {saving&&<div style={{textAlign:'center',color:C.textDim,fontSize:12,marginTop:8}}>Salvataggio...</div>}
-        </Modal>
-      )}
+      <div style={{height:1,background:C.border,margin:"6px 18px"}}/>
+      <div style={{padding:"14px 0 6px"}}>
+        <div style={{fontSize:10,fontWeight:600,letterSpacing:".18em",textTransform:"uppercase",color:C.redDim,padding:"0 18px 6px"}}>Segreti</div>
+        <div onClick={()=>nav("tomo")} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 18px",cursor:"pointer",fontSize:13,color:view==="tomo"?C.red2:C.textDim,background:view==="tomo"?`rgba(192,57,43,.1)`:"transparent",borderLeft:`2px solid ${view==="tomo"?C.red:"transparent"}`}}>
+          <span style={{fontSize:14,width:18,textAlign:"center"}}>🔒</span>Tomo Segreto
+        </div>
+      </div>
+
+      <div style={{height:1,background:C.border,margin:"6px 18px"}}/>
+      <div style={{padding:"14px 0 6px"}}>
+        <div style={{fontSize:10,fontWeight:600,letterSpacing:".18em",textTransform:"uppercase",color:C.textMuted,padding:"0 18px 6px"}}>La Compagnia</div>
+        {[{v:"minerva",color:"#c084fc",label:"Minerva"},{v:"talia",color:"#fb923c",label:"Talia"}].map(({v,color,label})=>(
+          <div key={v} onClick={()=>nav(v)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 18px",cursor:"pointer",fontSize:13,color:view===v?C.red2:C.textDim,background:view===v?`rgba(192,57,43,.1)`:"transparent",borderLeft:`2px solid ${view===v?C.red:"transparent"}`}}>
+            <span style={{width:8,height:8,borderRadius:"50%",background:color,flexShrink:0,display:"inline-block"}}/>
+            {label}
+          </div>
+        ))}
+      </div>
+    </aside>
+
+    <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",marginLeft:0}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 20px",borderBottom:`1px solid ${C.border}`,background:C.bg2,gap:10,flexShrink:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={()=>setSidebarOpen(o=>!o)} style={{background:"none",border:`1px solid ${C.border2}`,borderRadius:8,color:C.textDim,fontSize:16,width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>☰</button>
+          <div style={{width:26,height:26,borderRadius:"50%",background:`radial-gradient(circle at 35% 35%,${C.red2},${C.redDim})`,boxShadow:`0 0 10px rgba(192,57,43,.4)`,flexShrink:0}}/>
+          <span style={{fontFamily:"'Cinzel',serif",fontSize:16,fontWeight:600,color:C.red2,letterSpacing:".06em"}}>{TITLES[view]||view}</span>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <button onClick={toggleDm} style={{fontSize:12,fontWeight:500,padding:"6px 14px",border:`1px solid ${isAuth?C.red:C.border2}`,borderRadius:8,background:isAuth?C.red:"transparent",color:isAuth?"#fff":C.textDim,cursor:"pointer",boxShadow:isAuth?`0 0 12px rgba(192,57,43,.4)`:"none"}}>
+            {isAuth?"🔓 DM":"🔐 DM"}
+          </button>
+          <button onClick={openAdd} style={{fontSize:12,fontWeight:600,padding:"6px 14px",borderRadius:8,background:C.red,color:"#fff",border:"none",cursor:"pointer"}}>+ Aggiungi</button>
+        </div>
+      </div>
+
+      <div style={{flex:1,overflowY:"auto",padding:20}}>
+        {renderContent()}
+      </div>
     </div>
-  )
+
+    <NpcPanel npc={npcOpen} onClose={()=>setNpcOpen(null)}/>
+    {showPin&&<PinModal onSuccess={()=>{setIsAuth(true);setShowPin(false);}} onClose={()=>setShowPin(false)}/>}
+    {modal&&<Modal title={modal.idx!=null?"Modifica":"Aggiungi"} onClose={()=>setModal(null)} onSave={saveModal}>
+      <FormFields fields={FIELDS[modal.view]||[{id:"name",l:"Nome",ph:""},{id:"desc",l:"Descrizione",ph:"",ta:true}]} vals={modal.vals} onChange={(id,val)=>setModal(m=>({...m,vals:{...m.vals,[id]:val}}))}/>
+    </Modal>}
+  </div>;
 }
