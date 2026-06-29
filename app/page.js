@@ -229,7 +229,7 @@ function NpcPanel({npc,onClose}){
       <div style={{textAlign:"center",padding:"0 0 14px",color:C.goldDim,fontSize:12}}>✦</div>
       <div style={{padding:"0 20px 16px"}}>
         {npc.img
-          ? <img src={npc.img} alt={npc.name} style={{width:"100%",borderRadius:12,border:`1px solid ${C.border2}`,maxHeight:340,objectFit:"cover",display:"block"}}/>
+          ? <img src={npc.img} alt={npc.name} style={{width:"100%",height:420,borderRadius:12,border:`1px solid ${C.border2}`,objectFit:"cover",objectPosition:"center top",display:"block"}}/>
           : <div style={{width:"100%",height:200,background:C.bg3,borderRadius:12,border:`1px solid ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:56}}>{npc.icon||"👤"}</div>
         }
       </div>
