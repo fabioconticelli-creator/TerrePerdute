@@ -388,7 +388,7 @@ const TABLE_MAP = {
 export default function App(){
   const [data,setData]=useState({sessioni:[],npc:[],gilda:[],fazioni:[],mondo:[],cronologia:[],arcano:[],tomo:[],party:[]});
   const [loading,setLoading]=useState(true);
-  const [view,setView]=useState("mondo");
+  const [view,setView]=useState("sessioni");
   const [isAuth,setIsAuth]=useState(false);
   const [sidebarOpen,setSidebarOpen]=useState(false);
   const [showPin,setShowPin]=useState(false);
@@ -428,8 +428,7 @@ export default function App(){
     setLoading(false);
   };
 
-  useEffect(()=>{ loadAll(); },[]);
-
+useEffect(()=>{ loadAll(); const interval=setInterval(loadAll,30000); return ()=>clearInterval(interval); },[]);
   const nav=(v)=>{setView(v);setSidebarOpen(false);};
   const toggleDm=()=>{ if(isAuth){setIsAuth(false);}else{setShowPin(true);} };
 
