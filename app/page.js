@@ -170,11 +170,19 @@ function PlayerView({user, onLogout}){
 
   const load = async () => {
     const [charRes, invRes, notesRes] = await Promise.all([
-      supabase.from("player_characters").select("*").eq("player_id", user.userId).single(),
+      supabase.from("player_characters").select("*").eq("player_id", user.userId).maybeSingle(),
       supabase.from("player_inventory").select("*").eq("player_id", user.userId).order("created_at"),
       supabase.from("player_session_notes").select("*").eq("player_id", user.userId).order("created_at", {ascending:false}),
     ]);
-    if(charRes.data) { setChar(charRes.data); setAvatarPreview(charRes.data.avatar_url||""); }
+    if(charRes.data) {
+        const c = charRes.data;
+        if(typeof c.attacks === 'string') try{ c.attacks = JSON.parse(c.attacks); }catch(e){ c.attacks = []; }
+        if(!Array.isArray(c.attacks)) c.attacks = [];
+        if(typeof c.spell_slots === 'string') try{ c.spell_slots = JSON.parse(c.spell_slots); }catch(e){ c.spell_slots = {}; }
+        if(typeof c.coins === 'string') try{ c.coins = JSON.parse(c.coins); }catch(e){ c.coins = {}; }
+        if(typeof c.potions === 'string') try{ c.potions = JSON.parse(c.potions); }catch(e){ c.potions = {}; }
+        setChar(c); setAvatarPreview(c.avatar_url||"");
+    }
     setInventory(invRes.data||[]);
     setSessionNotes(notesRes.data||[]);
     setLoading(false);
@@ -805,11 +813,19 @@ function DmPlayerView({player, onUpdate}){
 
   const load = async () => {
     const [charRes, invRes, notesRes] = await Promise.all([
-      supabase.from("player_characters").select("*").eq("id", player.id).single(),
+      supabase.from("player_characters").select("*").eq("id", player.id).maybeSingle(),
       supabase.from("player_inventory").select("*").eq("player_id", player.player_id).order("created_at"),
       supabase.from("player_session_notes").select("*").eq("player_id", player.player_id).order("created_at",{ascending:false}),
     ]);
-    if(charRes.data){ setChar(charRes.data); setAvatarPreview(charRes.data.avatar_url||""); }
+    if(charRes.data){
+        const c = charRes.data;
+        if(typeof c.attacks === 'string') try{ c.attacks = JSON.parse(c.attacks); }catch(e){ c.attacks = []; }
+        if(!Array.isArray(c.attacks)) c.attacks = [];
+        if(typeof c.spell_slots === 'string') try{ c.spell_slots = JSON.parse(c.spell_slots); }catch(e){ c.spell_slots = {}; }
+        if(typeof c.coins === 'string') try{ c.coins = JSON.parse(c.coins); }catch(e){ c.coins = {}; }
+        if(typeof c.potions === 'string') try{ c.potions = JSON.parse(c.potions); }catch(e){ c.potions = {}; }
+        setChar(c); setAvatarPreview(c.avatar_url||"");
+    }
     setInventory(invRes.data||[]);
     setSessionNotes(notesRes.data||[]);
   };
@@ -832,7 +848,7 @@ function DmPlayerView({player, onUpdate}){
       const numFields = ["level","hp","max_hp","ac","str","dex","con","int","wis","cha","prof_bonus"];
       const obj = {...editVals, avatar_url: avatarUrl};
       numFields.forEach(f=>{ if(obj[f]!==undefined) obj[f]=parseInt(obj[f])||0; });
-      delete obj.id; delete obj.created_at; delete obj.player_id; delete obj.profiles;
+      delete obj.id; delete obj.created_at; delete obj.player_id;
       await supabase.from("player_characters").update(obj).eq("id", char.id);
       setEditing(false); setAvatarFile(null); load(); onUpdate();
     } catch(e){ alert("Errore: "+e.message); }
@@ -869,7 +885,7 @@ function DmPlayerView({player, onUpdate}){
   const inp = {width:"100%",background:C.bg,border:`1px solid ${C.border2}`,borderRadius:8,color:C.text,fontFamily:"inherit",fontSize:14,padding:"8px 12px",outline:"none",marginTop:4,boxSizing:"border-box"};
   const lbl = {display:"block",fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim,marginBottom:2};
 
-  const playerName = char.profiles?.character_name || char.name || "Player";
+  const playerName = char.name || player.name || "Player";
 
   if(editing) return (
     <div>
@@ -1440,7 +1456,7 @@ export default function App(){
           <div style={{fontSize:10,fontWeight:600,letterSpacing:".18em",textTransform:"uppercase",color:C.textMuted,padding:"0 18px 6px"}}>La Compagnia</div>
           {players.map((p,i)=>{
             const vkey = `player_${p.id}`;
-            const name = p.profiles?.character_name || p.name || "Player";
+            const name = p.name || "Player";
             const hpPct = p.max_hp>0?Math.max(0,Math.min(100,(p.hp/p.max_hp)*100)):0;
             const hpColor = hpPct>60?C.green:hpPct>25?C.yellow:"#f87171";
             return <div key={i} onClick={()=>{setSelectedPlayer(p);nav(vkey);}} style={{padding:"9px 18px",cursor:"pointer",background:view===vkey?`rgba(212,160,23,.08)`:"transparent",borderLeft:`2px solid ${view===vkey?C.gold:"transparent"}`}}>
