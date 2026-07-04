@@ -152,104 +152,489 @@ function LoginScreen({onLogin}){
 // ── PLAYER VIEW ──
 function PlayerView({user, onLogout}){
   const [char, setChar] = useState(null);
+  const [inventory, setInventory] = useState([]);
+  const [sessionNotes, setSessionNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("scheda");
-  const tabs = ["scheda","inventario","incantesimi","note"];
+  const [editing, setEditing] = useState(false);
+  const [editVals, setEditVals] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [invModal, setInvModal] = useState(null);
+  const [invVals, setInvVals] = useState({});
+  const [noteModal, setNoteModal] = useState(null);
+  const [noteVals, setNoteVals] = useState({});
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState("");
+
+  const tabs = ["scheda","inventario","incantesimi","famigli","note sessione"];
+
+  const load = async () => {
+    const [charRes, invRes, notesRes] = await Promise.all([
+      supabase.from("player_characters").select("*").eq("player_id", user.userId).single(),
+      supabase.from("player_inventory").select("*").eq("player_id", user.userId).order("created_at"),
+      supabase.from("player_session_notes").select("*").eq("player_id", user.userId).order("created_at", {ascending:false}),
+    ]);
+    if(charRes.data) { setChar(charRes.data); setAvatarPreview(charRes.data.avatar_url||""); }
+    setInventory(invRes.data||[]);
+    setSessionNotes(notesRes.data||[]);
+    setLoading(false);
+  };
 
   useEffect(()=>{
-    const load = async () => {
-      const {data} = await supabase.from("player_characters").select("*").eq("player_id", user.userId).single();
-      setChar(data);
-      setLoading(false);
-    };
     load();
     const interval = setInterval(load, 30000);
     return ()=>clearInterval(interval);
   },[user.userId]);
 
-  const hpPct = char?.max_hp>0 ? Math.max(0,Math.min(100,(char.hp/char.max_hp)*100)) : 0;
-  const hpColor = hpPct>60?C.green:hpPct>25?C.yellow:"#f87171";
+  const saveChar = async () => {
+    setSaving(true);
+    try {
+      let avatarUrl = editVals.avatar_url || char?.avatar_url || "";
+      if(avatarFile){
+        const ext = avatarFile.name.split(".").pop();
+        const path = `avatars/${user.userId}.${ext}`;
+        const {error:upErr} = await supabase.storage.from("npc-images").upload(path, avatarFile, {upsert:true});
+        if(!upErr){
+          const {data:urlData} = supabase.storage.from("npc-images").getPublicUrl(path);
+          avatarUrl = urlData.publicUrl;
+        }
+      }
+      const numFields = ["level","hp","max_hp","ac","str","dex","con","int","wis","cha","prof_bonus"];
+      const obj = {...editVals, avatar_url: avatarUrl};
+      numFields.forEach(f=>{ if(obj[f]!==undefined) obj[f]=parseInt(obj[f])||0; });
+      delete obj.id; delete obj.created_at; delete obj.player_id;
+      if(char?.id){
+        await supabase.from("player_characters").update(obj).eq("id", char.id);
+      } else {
+        await supabase.from("player_characters").insert({...obj, player_id: user.userId});
+      }
+      setEditing(false); setAvatarFile(null); load();
+    } catch(e){ alert("Errore: "+e.message); }
+    setSaving(false);
+  };
 
-  if(loading) return <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",color:C.textDim,fontSize:14}}>Caricamento...</div>;
+  const adjustHp = async (delta) => {
+    if(!char) return;
+    const newHp = Math.max(0, Math.min(char.max_hp||999, (char.hp||0)+delta));
+    await supabase.from("player_characters").update({hp:newHp}).eq("id", char.id);
+    setChar(c=>({...c, hp:newHp}));
+  };
 
-  if(!char) return (
-    <div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
-      <EmptyState msg="Nessuna scheda trovata. Chiedi al DM di crearla."/>
-      <Btn onClick={onLogout}>Esci</Btn>
+  const saveInv = async () => {
+    setSaving(true);
+    const obj = {...invVals, quantity: parseInt(invVals.quantity)||1};
+    delete obj.id; delete obj.created_at; delete obj.player_id;
+    if(invModal?.id){
+      await supabase.from("player_inventory").update(obj).eq("id", invModal.id);
+    } else {
+      await supabase.from("player_inventory").insert({...obj, player_id: user.userId});
+    }
+    setInvModal(null); setSaving(false); load();
+  };
+
+  const deleteInv = async (id) => {
+    if(!window.confirm("Eliminare?")) return;
+    await supabase.from("player_inventory").delete().eq("id", id);
+    load();
+  };
+
+  const saveNote = async () => {
+    setSaving(true);
+    const obj = {...noteVals};
+    delete obj.id; delete obj.created_at; delete obj.player_id;
+    if(noteModal?.id){
+      await supabase.from("player_session_notes").update(obj).eq("id", noteModal.id);
+    } else {
+      await supabase.from("player_session_notes").insert({...obj, player_id: user.userId});
+    }
+    setNoteModal(null); setSaving(false); load();
+  };
+
+  const deleteNote = async (id) => {
+    if(!window.confirm("Eliminare?")) return;
+    await supabase.from("player_session_notes").delete().eq("id", id);
+    load();
+  };
+
+  const updateCoins = async (key, val) => {
+    const coins = {...(char?.coins||{mo:0,ma:0,mr:0,mp:0}), [key]: parseInt(val)||0};
+    await supabase.from("player_characters").update({coins}).eq("id", char.id);
+    setChar(c=>({...c, coins}));
+  };
+
+  const updatePotions = async (key, delta) => {
+    const potions = {...(char?.potions||{minore:0,maggiore:0,superiore:0,suprema:0})};
+    potions[key] = Math.max(0, (potions[key]||0)+delta);
+    await supabase.from("player_characters").update({potions}).eq("id", char.id);
+    setChar(c=>({...c, potions}));
+  };
+
+  const saveAttack = async (attacks) => {
+    await supabase.from("player_characters").update({attacks}).eq("id", char.id);
+    setChar(c=>({...c, attacks}));
+  };
+
+  const saveSpellSlots = async (spell_slots) => {
+    await supabase.from("player_characters").update({spell_slots}).eq("id", char.id);
+    setChar(c=>({...c, spell_slots}));
+  };
+
+  const C2 = C;
+  const hpPct = char?.max_hp>0 ? Math.max(0,Math.min(100,((char.hp||0)/char.max_hp)*100)) : 0;
+  const hpColor = hpPct>60?C2.green:hpPct>25?C2.yellow:"#f87171";
+
+  const inp = {width:"100%",background:C2.bg,border:`1px solid ${C2.border2}`,borderRadius:8,color:C2.text,fontFamily:"inherit",fontSize:14,padding:"8px 12px",outline:"none",marginTop:4,boxSizing:"border-box"};
+  const lbl = {display:"block",fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C2.textDim,marginBottom:2};
+
+  if(loading) return <div style={{minHeight:"100vh",background:C2.bg,display:"flex",alignItems:"center",justifyContent:"center",color:C2.textDim,fontSize:14}}>Caricamento...</div>;
+
+  // ── EDIT MODE ──
+  if(editing) return (
+    <div style={{minHeight:"100vh",background:C2.bg,color:C2.text,fontFamily:"'Inter',sans-serif"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 20px",background:C2.bg2,borderBottom:`1px solid ${C2.border}`,position:"sticky",top:0,zIndex:10}}>
+        <span style={{fontFamily:"'Cinzel',serif",fontSize:16,fontWeight:600,color:C2.gold}}>✏ Modifica Scheda</span>
+        <div style={{display:"flex",gap:8}}>
+          <Btn onClick={()=>{setEditing(false);setAvatarFile(null);}}>Annulla</Btn>
+          <Btn primary onClick={saveChar} disabled={saving}>{saving?"Salvo...":"Salva"}</Btn>
+        </div>
+      </div>
+      <div style={{maxWidth:520,margin:"0 auto",padding:"20px 16px"}}>
+        {/* Avatar */}
+        <div style={{marginBottom:16,textAlign:"center"}}>
+          <div style={{width:80,height:80,borderRadius:"50%",border:`3px solid ${C2.gold}`,overflow:"hidden",margin:"0 auto 10px",background:C2.bg3,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32}}>
+            {avatarPreview?<img src={avatarPreview} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:"🛡️"}
+          </div>
+          <label style={{background:C2.bg3,border:`1px solid ${C2.border2}`,borderRadius:8,padding:"6px 14px",cursor:"pointer",fontSize:12,color:C2.textDim}}>
+            📷 Cambia avatar
+            <input type="file" accept="image/*" onChange={e=>{const f=e.target.files[0];if(f){setAvatarFile(f);setAvatarPreview(URL.createObjectURL(f));}}} style={{display:"none"}}/>
+          </label>
+        </div>
+        {/* Base info */}
+        <Card style={{marginBottom:12}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C2.gold,marginBottom:12}}>Informazioni Base</div>
+          {[{k:"name",l:"Nome"},{k:"class",l:"Classe"},{k:"race",l:"Razza"},{k:"background",l:"Background"}].map(f=>(
+            <div key={f.k} style={{marginBottom:10}}>
+              <label style={lbl}>{f.l}</label>
+              <input value={editVals[f.k]||""} onChange={e=>setEditVals(v=>({...v,[f.k]:e.target.value}))} style={inp}/>
+            </div>
+          ))}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+            {[{k:"level",l:"Livello"},{k:"ac",l:"CA"},{k:"prof_bonus",l:"Bonus Comp."}].map(f=>(
+              <div key={f.k}>
+                <label style={lbl}>{f.l}</label>
+                <input type="number" value={editVals[f.k]||""} onChange={e=>setEditVals(v=>({...v,[f.k]:e.target.value}))} style={inp}/>
+              </div>
+            ))}
+          </div>
+        </Card>
+        {/* HP */}
+        <Card style={{marginBottom:12}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C2.gold,marginBottom:12}}>Punti Ferita</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            {[{k:"hp",l:"HP Attuali"},{k:"max_hp",l:"HP Massimi"}].map(f=>(
+              <div key={f.k}>
+                <label style={lbl}>{f.l}</label>
+                <input type="number" value={editVals[f.k]||""} onChange={e=>setEditVals(v=>({...v,[f.k]:e.target.value}))} style={inp}/>
+              </div>
+            ))}
+          </div>
+        </Card>
+        {/* Stats */}
+        <Card style={{marginBottom:12}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C2.gold,marginBottom:12}}>Caratteristiche</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+            {[{k:"str",l:"FOR"},{k:"dex",l:"DES"},{k:"con",l:"COS"},{k:"int",l:"INT"},{k:"wis",l:"SAG"},{k:"cha",l:"CAR"}].map(f=>(
+              <div key={f.k}>
+                <label style={lbl}>{f.l}</label>
+                <input type="number" value={editVals[f.k]||""} onChange={e=>setEditVals(v=>({...v,[f.k]:e.target.value}))} style={inp}/>
+              </div>
+            ))}
+          </div>
+        </Card>
+        {/* Attacks */}
+        <Card style={{marginBottom:12}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C2.gold,marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span>Attacchi</span>
+            <Btn primary onClick={()=>setEditVals(v=>({...v,attacks:[...(v.attacks||[]),{name:"",bonus:"",damage:""}]}))}>+ Aggiungi</Btn>
+          </div>
+          {(editVals.attacks||[]).map((a,i)=>(
+            <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr auto",gap:6,marginBottom:8,alignItems:"end"}}>
+              <div><label style={lbl}>Nome</label><input value={a.name||""} onChange={e=>setEditVals(v=>({...v,attacks:v.attacks.map((x,j)=>j===i?{...x,name:e.target.value}:x)}))} style={inp}/></div>
+              <div><label style={lbl}>Bonus</label><input value={a.bonus||""} onChange={e=>setEditVals(v=>({...v,attacks:v.attacks.map((x,j)=>j===i?{...x,bonus:e.target.value}:x)}))} style={inp}/></div>
+              <div><label style={lbl}>Danni</label><input value={a.damage||""} onChange={e=>setEditVals(v=>({...v,attacks:v.attacks.map((x,j)=>j===i?{...x,damage:e.target.value}:x)}))} style={inp}/></div>
+              <button onClick={()=>setEditVals(v=>({...v,attacks:v.attacks.filter((_,j)=>j!==i)}))} style={{background:"none",border:"none",color:"#f87171",fontSize:18,cursor:"pointer",paddingBottom:4}}>✕</button>
+            </div>
+          ))}
+        </Card>
+        {/* Spell Slots */}
+        <Card style={{marginBottom:12}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C2.gold,marginBottom:12}}>Slot Incantesimo</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+            {[1,2,3,4,5,6,7,8,9].map(lv=>(
+              <div key={lv}>
+                <label style={lbl}>Lv {lv}</label>
+                <input type="number" value={(editVals.spell_slots||{})[lv]||""} onChange={e=>setEditVals(v=>({...v,spell_slots:{...(v.spell_slots||{}),[lv]:parseInt(e.target.value)||0}}))} style={inp}/>
+              </div>
+            ))}
+          </div>
+        </Card>
+        {/* Famiglio & Note */}
+        <Card style={{marginBottom:12}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C2.gold,marginBottom:12}}>Famiglio</div>
+          <textarea value={editVals.famiglio||""} onChange={e=>setEditVals(v=>({...v,famiglio:e.target.value}))} placeholder="Descrivi il tuo famiglio..." style={{...inp,minHeight:80,resize:"vertical"}}/>
+        </Card>
+      </div>
     </div>
   );
 
+  // ── VIEW MODE ──
   return (
-    <div style={{minHeight:"100vh",background:C.bg,color:C.text,fontFamily:"'Inter',sans-serif"}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 20px",background:C.bg2,borderBottom:`1px solid ${C.border}`}}>
+    <div style={{minHeight:"100vh",background:C2.bg,color:C2.text,fontFamily:"'Inter',sans-serif"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 20px",background:C2.bg2,borderBottom:`1px solid ${C2.border}`,position:"sticky",top:0,zIndex:10}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <div style={{width:26,height:26,borderRadius:"50%",background:`radial-gradient(circle at 35% 35%,${C.gold},${C.goldDim})`,boxShadow:`0 0 10px ${C.goldGlow}`}}/>
-          <span style={{fontFamily:"'Cinzel',serif",fontSize:16,fontWeight:600,color:C.gold}}>Terre Perdute</span>
+          <div style={{width:26,height:26,borderRadius:"50%",background:`radial-gradient(circle at 35% 35%,${C2.gold},${C2.goldDim})`,boxShadow:`0 0 10px ${C2.goldGlow}`}}/>
+          <span style={{fontFamily:"'Cinzel',serif",fontSize:16,fontWeight:600,color:C2.gold}}>Terre Perdute</span>
         </div>
         <Btn onClick={onLogout}>Esci</Btn>
       </div>
-      <div style={{maxWidth:520,margin:"0 auto",padding:"20px 16px"}}>
-        <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:16}}>
-          <div style={{width:64,height:64,borderRadius:"50%",border:`3px solid ${C.gold}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,background:C.bg3,flexShrink:0}}>⚔️</div>
-          <div>
-            <div style={{fontFamily:"'Cinzel',serif",fontSize:22,fontWeight:700,color:C.text}}>{char.name}</div>
-            <div style={{fontSize:13,color:C.textDim,marginTop:3}}>{char.class} · {char.race} · Lv {char.level}</div>
+
+      {!char ? (
+        <div style={{maxWidth:520,margin:"40px auto",padding:"0 16px",textAlign:"center"}}>
+          <div style={{fontSize:40,opacity:.3,marginBottom:16}}>📜</div>
+          <div style={{fontFamily:"'Cinzel',serif",fontSize:16,color:C2.textDim,marginBottom:20}}>Nessuna scheda trovata</div>
+          <Btn primary onClick={()=>{setEditVals({name:user.name||"",str:10,dex:10,con:10,int:10,wis:10,cha:10,hp:10,max_hp:10,ac:10,level:1,prof_bonus:2,attacks:[],spell_slots:{},coins:{mo:0,ma:0,mr:0,mp:0},potions:{minore:0,maggiore:0,superiore:0,suprema:0}});setEditing(true);}}>Crea la tua scheda</Btn>
+        </div>
+      ) : (
+        <div style={{maxWidth:520,margin:"0 auto",padding:"20px 16px"}}>
+          {/* Header */}
+          <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:16}}>
+            <div style={{width:64,height:64,borderRadius:"50%",border:`3px solid ${C2.gold}`,overflow:"hidden",background:C2.bg3,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,flexShrink:0}}>
+              {char.avatar_url?<img src={char.avatar_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:"🛡️"}
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontFamily:"'Cinzel',serif",fontSize:20,fontWeight:700,color:C2.text}}>{char.name||user.name}</div>
+              <div style={{fontSize:12,color:C2.textDim,marginTop:3}}>{[char.race,char.class,`Lv ${char.level}`].filter(Boolean).join(" · ")}</div>
+            </div>
+            <Btn onClick={()=>{setEditVals({...char});setEditing(true);}}>✏ Modifica</Btn>
           </div>
-        </div>
-        <div style={{display:"flex",gap:2,background:C.bg3,borderRadius:10,padding:3,marginBottom:16,overflowX:"auto"}}>
-          {tabs.map(t=>(
-            <button key={t} onClick={()=>setTab(t)} style={{fontSize:12,fontWeight:tab===t?600:400,padding:"7px 13px",borderRadius:8,border:"none",background:tab===t?C.gold:"transparent",color:tab===t?"#0b1120":C.textDim,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>{t}</button>
-          ))}
-        </div>
-        {tab==="scheda"&&<>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
-            {[["CA",char.ac],["Livello",char.level],["Background",char.background||"—"]].map(([l,v])=>(
-              <div key={l} style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 8px",textAlign:"center"}}>
-                <div style={{fontSize:9,fontWeight:700,letterSpacing:".18em",textTransform:"uppercase",color:C.textDim}}>{l}</div>
-                <div style={{fontFamily:"'Cinzel',serif",fontSize:typeof v==="number"?22:13,fontWeight:700,color:C.text,marginTop:3}}>{v}</div>
-              </div>
+
+          {/* Tabs */}
+          <div style={{display:"flex",gap:2,background:C2.bg3,borderRadius:10,padding:3,marginBottom:16,overflowX:"auto"}}>
+            {tabs.map(t=>(
+              <button key={t} onClick={()=>setTab(t)} style={{fontSize:11,fontWeight:tab===t?600:400,padding:"7px 10px",borderRadius:8,border:"none",background:tab===t?C2.gold:"transparent",color:tab===t?"#0b1120":C2.textDim,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>{t}</button>
             ))}
           </div>
-          <Card style={{marginBottom:12}}>
-            <div style={{fontSize:13,color:C.textDim,marginBottom:10}}>Punti Ferita</div>
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <div style={{fontFamily:"'Cinzel',serif",fontSize:28,fontWeight:700,color:C.text}}>{char.hp}</div>
-              <div style={{fontSize:13,color:C.textDim}}>/ {char.max_hp}</div>
-            </div>
-            <div style={{height:8,background:C.bg4,borderRadius:4,overflow:"hidden",marginTop:10}}>
-              <div style={{height:"100%",width:`${hpPct}%`,background:hpColor,borderRadius:4,transition:"width .3s"}}/>
-            </div>
-          </Card>
-          <Card style={{marginBottom:12}}>
-            <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:10}}>Caratteristiche</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:6}}>
-              {[["STR","str"],["DEX","dex"],["COS","con"],["INT","int"],["SAG","wis"],["CAR","cha"]].map(([l,k])=>(
-                <div key={k} style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 4px",textAlign:"center"}}>
-                  <div style={{fontSize:9,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:C.textDim}}>{l}</div>
-                  <div style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.text,margin:"3px 0"}}>{char[k]||10}</div>
-                  <div style={{fontSize:11,fontWeight:600,color:C.gold}}>{fmtMod(mod(char[k]||10))}</div>
+
+          {/* SCHEDA */}
+          {tab==="scheda"&&<>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
+              {[["CA",char.ac||0],["Livello",char.level||1],["Background",char.background||"—"]].map(([l,v])=>(
+                <div key={l} style={{background:C2.bg3,border:`1px solid ${C2.border}`,borderRadius:10,padding:"12px 8px",textAlign:"center"}}>
+                  <div style={{fontSize:9,fontWeight:700,letterSpacing:".18em",textTransform:"uppercase",color:C2.textDim}}>{l}</div>
+                  <div style={{fontFamily:"'Cinzel',serif",fontSize:typeof v==="number"?22:13,fontWeight:700,color:C2.text,marginTop:3}}>{v}</div>
                 </div>
               ))}
             </div>
-          </Card>
-          <Card>
-            <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:10}}>Abilità</div>
-            {ABILITA.map(a=>(
-              <div key={a.n} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 2px"}}>
-                <div style={{width:14,height:14,borderRadius:"50%",border:`2px solid ${C.border2}`,flexShrink:0}}/>
-                <div style={{fontSize:13,fontWeight:600,color:C.text,width:30}}>{fmtMod(mod(char[a.s]||10))}</div>
-                <div style={{fontSize:13,color:C.textDim,flex:1}}>{a.n}</div>
+            <Card style={{marginBottom:12}}>
+              <div style={{fontSize:13,color:C2.textDim,marginBottom:10}}>Punti Ferita</div>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <button onClick={()=>adjustHp(-1)} style={{width:36,height:36,borderRadius:"50%",border:"2px solid #f87171",background:"transparent",color:"#f87171",fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700}}>−</button>
+                <div style={{fontFamily:"'Cinzel',serif",fontSize:22,fontWeight:700,color:C2.text,background:C2.bg3,border:`1px solid ${C2.border2}`,borderRadius:8,padding:"6px 14px",minWidth:60,textAlign:"center"}}>{char.hp||0}</div>
+                <div style={{fontSize:13,color:C2.textDim}}>/ {char.max_hp||0}</div>
+                <button onClick={()=>adjustHp(1)} style={{width:36,height:36,borderRadius:"50%",border:`2px solid ${C2.green}`,background:"transparent",color:C2.green,fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,marginLeft:"auto"}}>+</button>
+              </div>
+              <div style={{height:8,background:C2.bg4,borderRadius:4,overflow:"hidden",marginTop:10}}>
+                <div style={{height:"100%",width:`${hpPct}%`,background:hpColor,borderRadius:4,transition:"width .3s"}}/>
+              </div>
+            </Card>
+            <Card style={{marginBottom:12}}>
+              <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C2.gold,marginBottom:10}}>Caratteristiche</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:6}}>
+                {[["FOR","str"],["DES","dex"],["COS","con"],["INT","int"],["SAG","wis"],["CAR","cha"]].map(([l,k])=>(
+                  <div key={k} style={{background:C2.bg3,border:`1px solid ${C2.border}`,borderRadius:10,padding:"10px 4px",textAlign:"center"}}>
+                    <div style={{fontSize:9,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:C2.textDim}}>{l}</div>
+                    <div style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C2.text,margin:"3px 0"}}>{char[k]||10}</div>
+                    <div style={{fontSize:11,fontWeight:600,color:C2.gold}}>{fmtMod(mod(char[k]||10))}</div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+              <Card>
+                <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C2.gold,marginBottom:10,display:"flex",justifyContent:"space-between"}}>
+                  <span>Abilità</span><span style={{fontWeight:400,color:C2.textMuted}}>+{char.prof_bonus||2}</span>
+                </div>
+                {ABILITA.map(a=>(
+                  <div key={a.n} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 2px"}}>
+                    <div style={{width:12,height:12,borderRadius:"50%",border:`2px solid ${C2.border2}`,flexShrink:0}}/>
+                    <div style={{fontSize:12,fontWeight:600,color:C2.text,width:28}}>{fmtMod(mod(char[a.s]||10))}</div>
+                    <div style={{fontSize:11,color:C2.textDim,flex:1}}>{a.n}</div>
+                  </div>
+                ))}
+              </Card>
+              <Card>
+                <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C2.gold,marginBottom:10}}>Tiri Salvezza</div>
+                {[["FOR","str"],["DES","dex"],["COS","con"],["INT","int"],["SAG","wis"],["CAR","cha"]].map(([l,k])=>(
+                  <div key={k} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 2px"}}>
+                    <div style={{width:12,height:12,borderRadius:"50%",border:`2px solid ${C2.border2}`,flexShrink:0}}/>
+                    <div style={{fontSize:12,fontWeight:600,color:C2.text,width:28}}>{fmtMod(mod(char[k]||10))}</div>
+                    <div style={{fontSize:11,color:C2.textDim,flex:1}}>{l}</div>
+                  </div>
+                ))}
+              </Card>
+            </div>
+            {(char.attacks||[]).length>0&&<Card style={{marginBottom:12}}>
+              <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C2.gold,marginBottom:10}}>Attacchi</div>
+              <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:4,marginBottom:6}}>
+                {["Nome","Bonus","Danni"].map(h=><div key={h} style={{fontSize:9,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:C2.textMuted}}>{h}</div>)}
+              </div>
+              {(char.attacks||[]).map((a,i)=>(
+                <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:4,padding:"6px 0",borderTop:`1px solid ${C2.border}`}}>
+                  <div style={{fontSize:13,fontWeight:600,color:C2.text}}>{a.name}</div>
+                  <div style={{fontSize:13,fontWeight:600,color:C2.green}}>{a.bonus}</div>
+                  <div style={{fontSize:13,color:C2.gold}}>{a.damage}</div>
+                </div>
+              ))}
+            </Card>}
+            {Object.keys(char.spell_slots||{}).some(k=>(char.spell_slots[k]||0)>0)&&<Card>
+              <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C2.gold,marginBottom:10}}>Slot Incantesimo</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6}}>
+                {[1,2,3,4,5,6,7,8,9].filter(lv=>(char.spell_slots||{})[lv]>0).map(lv=>(
+                  <div key={lv} style={{background:C2.bg3,border:`1px solid ${C2.border}`,borderRadius:8,padding:"8px 4px",textAlign:"center"}}>
+                    <div style={{fontSize:9,fontWeight:700,color:C2.textDim}}>Lv {lv}</div>
+                    <div style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C2.gold,marginTop:2}}>{char.spell_slots[lv]}</div>
+                  </div>
+                ))}
+              </div>
+            </Card>}
+          </>}
+
+          {/* INVENTARIO */}
+          {tab==="inventario"&&<>
+            <Card style={{marginBottom:12}}>
+              <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C2.gold,marginBottom:12}}>💰 Monete</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+                {[["MO","mo"],["MA","ma"],["MR","mr"],["MP","mp"]].map(([l,k])=>(
+                  <div key={k} style={{textAlign:"center"}}>
+                    <div style={{fontSize:10,fontWeight:700,color:C2.gold,marginBottom:4}}>{l}</div>
+                    <input type="number" value={(char.coins||{})[k]||0} onChange={e=>updateCoins(k,e.target.value)} style={{...inp,textAlign:"center",fontSize:16,fontWeight:700,padding:"8px 4px"}}/>
+                  </div>
+                ))}
+              </div>
+            </Card>
+            <Card style={{marginBottom:12}}>
+              <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C2.gold,marginBottom:12}}>🧪 Pozioni Curative</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                {[["Minore","minore","2d4+2"],["Maggiore","maggiore","4d4+4"],["Superiore","superiore","8d4+8"],["Suprema","suprema","10d4+20"]].map(([l,k,d])=>(
+                  <div key={k} style={{background:C2.bg3,border:`1px solid ${C2.border}`,borderRadius:10,padding:10}}>
+                    <div style={{fontSize:10,fontWeight:700,color:C2.gold}}>{l}</div>
+                    <div style={{fontSize:10,color:C2.textMuted,marginBottom:6}}>{d}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <button onClick={()=>updatePotions(k,-1)} style={{width:28,height:28,borderRadius:"50%",border:"2px solid #f87171",background:"transparent",color:"#f87171",fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
+                      <div style={{fontFamily:"'Cinzel',serif",fontSize:20,fontWeight:700,color:C2.text,flex:1,textAlign:"center"}}>{(char.potions||{})[k]||0}</div>
+                      <button onClick={()=>updatePotions(k,1)} style={{width:28,height:28,borderRadius:"50%",border:`2px solid ${C2.green}`,background:"transparent",color:C2.green,fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+            <div style={{display:"flex",justifyContent:"flex-end",marginBottom:10}}>
+              <Btn primary onClick={()=>{setInvVals({name:"",type:"",description:"",quantity:1});setInvModal({});}}>+ Aggiungi</Btn>
+            </div>
+            {inventory.map((item,i)=>(
+              <div key={item.id||i} style={{background:C2.bg2,border:`1px solid ${C2.border}`,borderRadius:12,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
+                <div style={{flex:1}}>
+                  <div style={{fontFamily:"'Cinzel',serif",fontSize:13,fontWeight:600,color:C2.text}}>{item.name}</div>
+                  {item.description&&<div style={{fontSize:11,color:C2.textDim,marginTop:2}}>{item.description}</div>}
+                  <div style={{display:"flex",gap:8,marginTop:4}}>
+                    {item.type&&<span style={{fontSize:10,fontWeight:600,padding:"1px 6px",border:`1px solid ${C2.border2}`,borderRadius:4,color:C2.textDim}}>{item.type}</span>}
+                    {item.quantity>1&&<span style={{fontSize:10,fontWeight:600,color:C2.gold}}>x{item.quantity}</span>}
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:4}}>
+                  <button onClick={()=>{setInvVals({...item});setInvModal(item);}} style={{background:"none",border:"none",color:C2.textDim,cursor:"pointer",fontSize:14}}>✏</button>
+                  <button onClick={()=>deleteInv(item.id)} style={{background:"none",border:"none",color:"#f87171",cursor:"pointer",fontSize:14}}>🗑</button>
+                </div>
               </div>
             ))}
-          </Card>
-        </>}
-        {tab==="inventario"&&<Card><div style={{textAlign:"center",padding:"40px 20px",color:C.textMuted,fontSize:13,fontStyle:"italic"}}>Inventario vuoto</div></Card>}
-        {tab==="incantesimi"&&<Card><div style={{textAlign:"center",padding:"40px 20px",color:C.textMuted,fontSize:13,fontStyle:"italic"}}>Nessun incantesimo</div></Card>}
-        {tab==="note"&&<Card><div style={{textAlign:"center",padding:"40px 20px",color:C.textMuted,fontSize:13,fontStyle:"italic"}}>Nessuna nota</div></Card>}
-      </div>
+          </>}
+
+          {/* INCANTESIMI */}
+          {tab==="incantesimi"&&<Card><div style={{textAlign:"center",padding:"40px 20px",color:C2.textMuted,fontSize:13,fontStyle:"italic"}}>Nessun incantesimo registrato</div></Card>}
+
+          {/* FAMIGLI */}
+          {tab==="famigli"&&<Card>{char.famiglio?<div style={{fontSize:14,color:C2.textDim,lineHeight:1.75}}>{char.famiglio}</div>:<div style={{textAlign:"center",padding:"40px 20px",color:C2.textMuted,fontSize:13,fontStyle:"italic"}}>Nessun famiglio</div>}</Card>}
+
+          {/* NOTE SESSIONE */}
+          {tab==="note sessione"&&<>
+            <div style={{display:"flex",justifyContent:"flex-end",marginBottom:10}}>
+              <Btn primary onClick={()=>{setNoteVals({session_title:"",date:"",content:""});setNoteModal({});}}>+ Aggiungi nota</Btn>
+            </div>
+            {sessionNotes.length===0?<Card><div style={{textAlign:"center",padding:"40px 20px",color:C2.textMuted,fontSize:13,fontStyle:"italic"}}>Nessuna nota ancora</div></Card>
+              :sessionNotes.map((note,i)=>(
+                <div key={note.id||i} style={{background:C2.bg2,border:`1px solid ${C2.border}`,borderLeft:`3px solid ${C2.gold}`,borderRadius:12,padding:"14px 16px",marginBottom:10}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                    <div style={{fontFamily:"'Cinzel',serif",fontSize:13,fontWeight:600,color:C2.text}}>{note.session_title}</div>
+                    <div style={{display:"flex",gap:4}}>
+                      <button onClick={()=>{setNoteVals({...note});setNoteModal(note);}} style={{background:"none",border:"none",color:C2.textDim,cursor:"pointer",fontSize:14}}>✏</button>
+                      <button onClick={()=>deleteNote(note.id)} style={{background:"none",border:"none",color:"#f87171",cursor:"pointer",fontSize:14}}>🗑</button>
+                    </div>
+                  </div>
+                  {note.date&&<div style={{fontSize:10,color:C2.textMuted,marginBottom:6}}>{note.date}</div>}
+                  {note.content&&<div style={{fontSize:13,color:C2.textDim,lineHeight:1.65,whiteSpace:"pre-wrap"}}>{note.content}</div>}
+                </div>
+              ))
+            }
+          </>}
+        </div>
+      )}
+
+      {/* INVENTORY MODAL */}
+      {invModal!==null&&<div onClick={()=>setInvModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.88)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
+        <div onClick={e=>e.stopPropagation()} style={{background:C2.bg2,border:`1px solid ${C2.border2}`,borderRadius:16,maxWidth:440,width:"92%",padding:20,boxShadow:`0 0 40px ${C2.goldGlow}`}}>
+          <div style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C2.gold,marginBottom:16}}>{invModal?.id?"Modifica Oggetto":"Nuovo Oggetto"}</div>
+          {[{k:"name",l:"Nome",ph:"Nome oggetto"},{k:"type",l:"Tipo",ph:"es. Arma, Armatura, Vari"},{k:"description",l:"Descrizione",ph:"...",ta:true}].map(f=>(
+            <div key={f.k} style={{marginBottom:12}}>
+              <label style={lbl}>{f.l}</label>
+              {f.ta?<textarea value={invVals[f.k]||""} onChange={e=>setInvVals(v=>({...v,[f.k]:e.target.value}))} placeholder={f.ph} style={{...inp,minHeight:60,resize:"vertical"}}/>
+                :<input value={invVals[f.k]||""} onChange={e=>setInvVals(v=>({...v,[f.k]:e.target.value}))} placeholder={f.ph} style={inp}/>}
+            </div>
+          ))}
+          <div style={{marginBottom:16}}>
+            <label style={lbl}>Quantità</label>
+            <input type="number" value={invVals.quantity||1} onChange={e=>setInvVals(v=>({...v,quantity:e.target.value}))} style={inp}/>
+          </div>
+          <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+            <Btn onClick={()=>setInvModal(null)}>Annulla</Btn>
+            <Btn primary onClick={saveInv} disabled={saving}>{saving?"Salvo...":"Salva"}</Btn>
+          </div>
+        </div>
+      </div>}
+
+      {/* NOTE MODAL */}
+      {noteModal!==null&&<div onClick={()=>setNoteModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.88)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
+        <div onClick={e=>e.stopPropagation()} style={{background:C2.bg2,border:`1px solid ${C2.border2}`,borderRadius:16,maxWidth:440,width:"92%",padding:20,boxShadow:`0 0 40px ${C2.goldGlow}`}}>
+          <div style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C2.gold,marginBottom:16}}>{noteModal?.id?"Modifica Nota":"Nuova Nota"}</div>
+          {[{k:"session_title",l:"Titolo sessione",ph:"es. Sessione I"},{k:"date",l:"Data",ph:"es. 1 Gen 2025"}].map(f=>(
+            <div key={f.k} style={{marginBottom:12}}>
+              <label style={lbl}>{f.l}</label>
+              <input value={noteVals[f.k]||""} onChange={e=>setNoteVals(v=>({...v,[f.k]:e.target.value}))} placeholder={f.ph} style={inp}/>
+            </div>
+          ))}
+          <div style={{marginBottom:16}}>
+            <label style={lbl}>Contenuto</label>
+            <textarea value={noteVals.content||""} onChange={e=>setNoteVals(v=>({...v,content:e.target.value}))} placeholder="Cosa è successo..." style={{...inp,minHeight:120,resize:"vertical"}}/>
+          </div>
+          <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+            <Btn onClick={()=>setNoteModal(null)}>Annulla</Btn>
+            <Btn primary onClick={saveNote} disabled={saving}>{saving?"Salvo...":"Salva"}</Btn>
+          </div>
+        </div>
+      </div>}
     </div>
   );
 }
+
 
 // ── MODAL ──
 function Modal({title,onClose,onSave,saving,children}){
