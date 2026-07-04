@@ -17,12 +17,12 @@ const C = {
 };
 
 const ABILITA = [
-  {n:"Acrobazia",s:"des"},{n:"Addestrare animali",s:"sag"},{n:"Arcano",s:"int"},
-  {n:"Atletica",s:"for"},{n:"Furtività",s:"des"},{n:"Indagare",s:"int"},
-  {n:"Inganno",s:"car"},{n:"Intimidire",s:"car"},{n:"Intuizione",s:"sag"},
-  {n:"Medicina",s:"sag"},{n:"Natura",s:"int"},{n:"Percezione",s:"sag"},
-  {n:"Performance",s:"car"},{n:"Persuasione",s:"car"},{n:"Rapidità di mano",s:"des"},
-  {n:"Religione",s:"int"},{n:"Sopravvivenza",s:"sag"},{n:"Storia",s:"int"},
+  {n:"Acrobazia",s:"dex"},{n:"Addestrare animali",s:"wis"},{n:"Arcano",s:"int"},
+  {n:"Atletica",s:"str"},{n:"Furtività",s:"dex"},{n:"Indagare",s:"int"},
+  {n:"Inganno",s:"cha"},{n:"Intimidire",s:"cha"},{n:"Intuizione",s:"wis"},
+  {n:"Medicina",s:"wis"},{n:"Natura",s:"int"},{n:"Percezione",s:"wis"},
+  {n:"Performance",s:"cha"},{n:"Persuasione",s:"cha"},{n:"Rapidità di mano",s:"dex"},
+  {n:"Religione",s:"int"},{n:"Sopravvivenza",s:"wis"},{n:"Storia",s:"int"},
 ];
 
 const mod = v => Math.floor(((v||10)-10)/2);
@@ -56,6 +56,202 @@ function EmptyState({msg}){
   </div>;
 }
 
+// ── LOGIN SCREEN ──
+function LoginScreen({onLogin}){
+  const [mode,setMode]=useState("choose"); // choose | dm | player
+  const [pin,setPin]=useState("");
+  const [pinErr,setPinErr]=useState("");
+  const [email,setEmail]=useState("");
+  const [password,setPassword]=useState("");
+  const [loginErr,setLoginErr]=useState("");
+  const [loading,setLoading]=useState(false);
+
+  const pressPin = d => {
+    if(pin.length>=4)return;
+    const next=pin+d;
+    setPin(next);
+    if(next.length===4){
+      setTimeout(()=>{
+        if(next===DM_PIN){ onLogin({role:"dm",name:"DM"}); }
+        else{ setPinErr("PIN errato"); setPin(""); }
+      },80);
+    }
+  };
+
+  const loginPlayer = async () => {
+    setLoading(true); setLoginErr("");
+    const {data,error} = await supabase.auth.signInWithPassword({email,password});
+    if(error){ setLoginErr("Email o password errati"); setLoading(false); return; }
+    const {data:profile} = await supabase.from("profiles").select("*").eq("id",data.user.id).single();
+    if(!profile){ setLoginErr("Profilo non trovato"); setLoading(false); return; }
+    onLogin({role:"player", name:profile.character_name, email, userId:data.user.id, profile});
+    setLoading(false);
+  };
+
+  const inp = {width:"100%",background:C.bg,border:`1px solid ${C.border2}`,borderRadius:8,color:C.text,fontFamily:"inherit",fontSize:15,padding:"10px 14px",outline:"none",boxSizing:"border-box",marginTop:6};
+
+  if(mode==="choose") return (
+    <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <div style={{textAlign:"center",maxWidth:340,width:"92%"}}>
+        <div style={{width:64,height:64,borderRadius:"50%",background:`radial-gradient(circle at 35% 35%,${C.gold},${C.goldDim})`,boxShadow:`0 0 32px ${C.goldGlow}`,margin:"0 auto 20px"}}/>
+        <div style={{fontFamily:"'Cinzel',serif",fontSize:26,fontWeight:700,color:C.gold,marginBottom:6}}>Terre Perdute</div>
+        <div style={{fontSize:12,color:C.textMuted,letterSpacing:".15em",textTransform:"uppercase",marginBottom:40}}>Chi sei?</div>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <button onClick={()=>setMode("dm")} style={{background:C.gold,color:"#0b1120",fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:700,padding:"14px",borderRadius:12,border:"none",cursor:"pointer",letterSpacing:".05em"}}>🔐 Dungeon Master</button>
+          <button onClick={()=>setMode("player")} style={{background:C.bg2,color:C.text,fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,padding:"14px",borderRadius:12,border:`1px solid ${C.border2}`,cursor:"pointer",letterSpacing:".05em"}}>⚔️ Avventuriero</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  if(mode==="dm") return (
+    <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <div style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,width:280,padding:"24px 20px",boxShadow:`0 0 32px ${C.goldGlow}`}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <span style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.gold}}>🔐 PIN Dungeon Master</span>
+          <button onClick={()=>setMode("choose")} style={{background:"none",border:"none",fontSize:18,color:C.textDim,cursor:"pointer"}}>✕</button>
+        </div>
+        <div style={{display:"flex",gap:12,justifyContent:"center",margin:"0 0 20px"}}>
+          {[0,1,2,3].map(i=><div key={i} style={{width:14,height:14,borderRadius:"50%",border:`2px solid ${i<pin.length?C.gold:C.border2}`,background:i<pin.length?C.gold:"transparent",transition:"all .15s"}}/>)}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,maxWidth:210,margin:"0 auto"}}>
+          {["1","2","3","4","5","6","7","8","9","CLR","0","⌫"].map(k=>(
+            <button key={k} onClick={()=>k==="CLR"?setPin(""):k==="⌫"?setPin(v=>v.slice(0,-1)):pressPin(k)}
+              style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,color:C.text,fontSize:k.length>1?11:18,fontWeight:500,padding:"13px 0",cursor:"pointer"}}>{k}</button>
+          ))}
+        </div>
+        <div style={{textAlign:"center",fontSize:11,fontWeight:600,color:"#f87171",marginTop:10,minHeight:16}}>{pinErr}</div>
+      </div>
+    </div>
+  );
+
+  if(mode==="player") return (
+    <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <div style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,maxWidth:340,width:"92%",padding:"24px 20px",boxShadow:`0 0 32px ${C.goldGlow}`}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <span style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.gold}}>⚔️ Accesso Avventuriero</span>
+          <button onClick={()=>setMode("choose")} style={{background:"none",border:"none",fontSize:18,color:C.textDim,cursor:"pointer"}}>✕</button>
+        </div>
+        <div style={{marginBottom:14}}>
+          <label style={{fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim}}>Email</label>
+          <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="es. fredys@tp.com" style={inp}/>
+        </div>
+        <div style={{marginBottom:20}}>
+          <label style={{fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim}}>Password</label>
+          <input type="password" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&loginPlayer()} placeholder="••••••••" style={inp}/>
+        </div>
+        {loginErr&&<div style={{fontSize:12,color:"#f87171",marginBottom:12,textAlign:"center"}}>{loginErr}</div>}
+        <button onClick={loginPlayer} disabled={loading} style={{width:"100%",background:C.gold,color:"#0b1120",fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:700,padding:"12px",borderRadius:10,border:"none",cursor:loading?"not-allowed":"pointer",opacity:loading?.6:1}}>
+          {loading?"Accesso...":"Entra"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── PLAYER VIEW ──
+function PlayerView({user, onLogout}){
+  const [char, setChar] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("scheda");
+  const tabs = ["scheda","inventario","incantesimi","note"];
+
+  useEffect(()=>{
+    const load = async () => {
+      const {data} = await supabase.from("player_characters").select("*").eq("player_id", user.userId).single();
+      setChar(data);
+      setLoading(false);
+    };
+    load();
+    const interval = setInterval(load, 30000);
+    return ()=>clearInterval(interval);
+  },[user.userId]);
+
+  const hpPct = char?.max_hp>0 ? Math.max(0,Math.min(100,(char.hp/char.max_hp)*100)) : 0;
+  const hpColor = hpPct>60?C.green:hpPct>25?C.yellow:"#f87171";
+
+  if(loading) return <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",color:C.textDim,fontSize:14}}>Caricamento...</div>;
+
+  if(!char) return (
+    <div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
+      <EmptyState msg="Nessuna scheda trovata. Chiedi al DM di crearla."/>
+      <Btn onClick={onLogout}>Esci</Btn>
+    </div>
+  );
+
+  return (
+    <div style={{minHeight:"100vh",background:C.bg,color:C.text,fontFamily:"'Inter',sans-serif"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 20px",background:C.bg2,borderBottom:`1px solid ${C.border}`}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:26,height:26,borderRadius:"50%",background:`radial-gradient(circle at 35% 35%,${C.gold},${C.goldDim})`,boxShadow:`0 0 10px ${C.goldGlow}`}}/>
+          <span style={{fontFamily:"'Cinzel',serif",fontSize:16,fontWeight:600,color:C.gold}}>Terre Perdute</span>
+        </div>
+        <Btn onClick={onLogout}>Esci</Btn>
+      </div>
+      <div style={{maxWidth:520,margin:"0 auto",padding:"20px 16px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:16}}>
+          <div style={{width:64,height:64,borderRadius:"50%",border:`3px solid ${C.gold}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,background:C.bg3,flexShrink:0}}>⚔️</div>
+          <div>
+            <div style={{fontFamily:"'Cinzel',serif",fontSize:22,fontWeight:700,color:C.text}}>{char.name}</div>
+            <div style={{fontSize:13,color:C.textDim,marginTop:3}}>{char.class} · {char.race} · Lv {char.level}</div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:2,background:C.bg3,borderRadius:10,padding:3,marginBottom:16,overflowX:"auto"}}>
+          {tabs.map(t=>(
+            <button key={t} onClick={()=>setTab(t)} style={{fontSize:12,fontWeight:tab===t?600:400,padding:"7px 13px",borderRadius:8,border:"none",background:tab===t?C.gold:"transparent",color:tab===t?"#0b1120":C.textDim,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>{t}</button>
+          ))}
+        </div>
+        {tab==="scheda"&&<>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
+            {[["CA",char.ac],["Livello",char.level],["Background",char.background||"—"]].map(([l,v])=>(
+              <div key={l} style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 8px",textAlign:"center"}}>
+                <div style={{fontSize:9,fontWeight:700,letterSpacing:".18em",textTransform:"uppercase",color:C.textDim}}>{l}</div>
+                <div style={{fontFamily:"'Cinzel',serif",fontSize:typeof v==="number"?22:13,fontWeight:700,color:C.text,marginTop:3}}>{v}</div>
+              </div>
+            ))}
+          </div>
+          <Card style={{marginBottom:12}}>
+            <div style={{fontSize:13,color:C.textDim,marginBottom:10}}>Punti Ferita</div>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <div style={{fontFamily:"'Cinzel',serif",fontSize:28,fontWeight:700,color:C.text}}>{char.hp}</div>
+              <div style={{fontSize:13,color:C.textDim}}>/ {char.max_hp}</div>
+            </div>
+            <div style={{height:8,background:C.bg4,borderRadius:4,overflow:"hidden",marginTop:10}}>
+              <div style={{height:"100%",width:`${hpPct}%`,background:hpColor,borderRadius:4,transition:"width .3s"}}/>
+            </div>
+          </Card>
+          <Card style={{marginBottom:12}}>
+            <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:10}}>Caratteristiche</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:6}}>
+              {[["STR","str"],["DEX","dex"],["COS","con"],["INT","int"],["SAG","wis"],["CAR","cha"]].map(([l,k])=>(
+                <div key={k} style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 4px",textAlign:"center"}}>
+                  <div style={{fontSize:9,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:C.textDim}}>{l}</div>
+                  <div style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.text,margin:"3px 0"}}>{char[k]||10}</div>
+                  <div style={{fontSize:11,fontWeight:600,color:C.gold}}>{fmtMod(mod(char[k]||10))}</div>
+                </div>
+              ))}
+            </div>
+          </Card>
+          <Card>
+            <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:10}}>Abilità</div>
+            {ABILITA.map(a=>(
+              <div key={a.n} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 2px"}}>
+                <div style={{width:14,height:14,borderRadius:"50%",border:`2px solid ${C.border2}`,flexShrink:0}}/>
+                <div style={{fontSize:13,fontWeight:600,color:C.text,width:30}}>{fmtMod(mod(char[a.s]||10))}</div>
+                <div style={{fontSize:13,color:C.textDim,flex:1}}>{a.n}</div>
+              </div>
+            ))}
+          </Card>
+        </>}
+        {tab==="inventario"&&<Card><div style={{textAlign:"center",padding:"40px 20px",color:C.textMuted,fontSize:13,fontStyle:"italic"}}>Inventario vuoto</div></Card>}
+        {tab==="incantesimi"&&<Card><div style={{textAlign:"center",padding:"40px 20px",color:C.textMuted,fontSize:13,fontStyle:"italic"}}>Nessun incantesimo</div></Card>}
+        {tab==="note"&&<Card><div style={{textAlign:"center",padding:"40px 20px",color:C.textMuted,fontSize:13,fontStyle:"italic"}}>Nessuna nota</div></Card>}
+      </div>
+    </div>
+  );
+}
+
+// ── MODAL ──
 function Modal({title,onClose,onSave,saving,children}){
   return <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.88)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
     <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,maxWidth:500,width:"92%",maxHeight:"88vh",overflowY:"auto",boxShadow:`0 0 40px ${C.goldGlow}`}}>
@@ -72,72 +268,50 @@ function Modal({title,onClose,onSave,saving,children}){
   </div>;
 }
 
-function NpcFormModal({npc, onClose, onSaved}){
-  const [vals, setVals] = useState(npc || {name:"",role:"",icon:"👤",description:"",primo_incontro:"",attitude:"Neutrale",stato:"vivo",img_url:""});
-  const [imgFile, setImgFile] = useState(null);
-  const [imgPreview, setImgPreview] = useState(npc?.img_url||"");
-  const [saving, setSaving] = useState(false);
-
-  const handleFile = (e) => {
-    const f = e.target.files[0];
-    if(!f) return;
-    setImgFile(f);
-    setImgPreview(URL.createObjectURL(f));
-  };
-
-  const save = async () => {
+function NpcFormModal({npc,onClose,onSaved}){
+  const [vals,setVals]=useState(npc||{name:"",role:"",icon:"👤",description:"",primo_incontro:"",attitude:"Neutrale",stato:"vivo",img_url:""});
+  const [imgFile,setImgFile]=useState(null);
+  const [imgPreview,setImgPreview]=useState(npc?.img_url||"");
+  const [saving,setSaving]=useState(false);
+  const handleFile=e=>{const f=e.target.files[0];if(!f)return;setImgFile(f);setImgPreview(URL.createObjectURL(f));};
+  const save=async()=>{
     setSaving(true);
-    try {
-      let imgUrl = vals.img_url || "";
+    try{
+      let imgUrl=vals.img_url||"";
       if(imgFile){
-        const ext = imgFile.name.split(".").pop();
-        const path = `${Date.now()}.${ext}`;
-        const {error:upErr} = await supabase.storage.from("npc-images").upload(path, imgFile, {upsert:true});
-        if(upErr) throw upErr;
-        const {data:urlData} = supabase.storage.from("npc-images").getPublicUrl(path);
-        imgUrl = urlData.publicUrl;
+        const ext=imgFile.name.split(".").pop();
+        const path=`${Date.now()}.${ext}`;
+        const {error:upErr}=await supabase.storage.from("npc-images").upload(path,imgFile,{upsert:true});
+        if(upErr)throw upErr;
+        const {data:urlData}=supabase.storage.from("npc-images").getPublicUrl(path);
+        imgUrl=urlData.publicUrl;
       }
-      const payload = {...vals, img_url: imgUrl};
-      delete payload.id;
+      const payload={...vals,img_url:imgUrl};
+      delete payload.id; delete payload.created_at;
       let error;
-      if(npc?.id){
-        ({error} = await supabase.from("npcs").update(payload).eq("id", npc.id));
-      } else {
-        ({error} = await supabase.from("npcs").insert(payload));
-      }
-      if(error) throw error;
+      if(npc?.id){({error}=await supabase.from("npcs").update(payload).eq("id",npc.id));}
+      else{({error}=await supabase.from("npcs").insert(payload));}
+      if(error)throw error;
       onSaved();
-    } catch(e){
-      alert("Errore: " + e.message);
-    } finally {
-      setSaving(false);
-    }
+    }catch(e){alert("Errore: "+e.message);}
+    setSaving(false);
   };
-
-  const inp = {width:"100%",background:C.bg,border:`1px solid ${C.border2}`,borderRadius:8,color:C.text,fontFamily:"inherit",fontSize:14,padding:"8px 12px",outline:"none",marginTop:4,boxSizing:"border-box"};
-  const lbl = {display:"block",fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim};
-
+  const inp={width:"100%",background:C.bg,border:`1px solid ${C.border2}`,borderRadius:8,color:C.text,fontFamily:"inherit",fontSize:14,padding:"8px 12px",outline:"none",marginTop:4,boxSizing:"border-box"};
+  const lbl={display:"block",fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim};
   return <Modal title={npc?.id?"Modifica NPC":"Nuovo NPC"} onClose={onClose} onSave={save} saving={saving}>
     <div style={{marginBottom:13}}>
       <label style={lbl}>Immagine</label>
       <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:8,alignItems:"center"}}>
-        {imgPreview
-          ? <img src={imgPreview} style={{width:"100%",maxHeight:200,objectFit:"cover",borderRadius:10,border:`1px solid ${C.border2}`}}/>
-          : <div style={{width:"100%",height:120,background:C.bg3,borderRadius:10,border:`2px dashed ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32}}>{vals.icon||"👤"}</div>
-        }
+        {imgPreview?<img src={imgPreview} style={{width:"100%",height:300,objectFit:"cover",objectPosition:"center top",borderRadius:10,border:`1px solid ${C.border2}`}}/>
+          :<div style={{width:"100%",height:120,background:C.bg3,borderRadius:10,border:`2px dashed ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32}}>{vals.icon||"👤"}</div>}
         <label style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:"8px 16px",cursor:"pointer",fontSize:12,color:C.textDim,textAlign:"center",width:"100%",boxSizing:"border-box"}}>
           📷 Scegli foto dal telefono
           <input type="file" accept="image/*" onChange={handleFile} style={{display:"none"}}/>
         </label>
-        {imgPreview && <button onClick={()=>{setImgFile(null);setImgPreview("");setVals(v=>({...v,img_url:""}));}} style={{fontSize:11,color:"#f87171",background:"none",border:"none",cursor:"pointer"}}>✕ Rimuovi immagine</button>}
+        {imgPreview&&<button onClick={()=>{setImgFile(null);setImgPreview("");setVals(v=>({...v,img_url:""}));}} style={{fontSize:11,color:"#f87171",background:"none",border:"none",cursor:"pointer"}}>✕ Rimuovi immagine</button>}
       </div>
     </div>
-    {[
-      {id:"name",l:"Nome",ph:"Nome"},
-      {id:"role",l:"Ruolo",ph:"es. Mercante"},
-      {id:"icon",l:"Icona",ph:"👤"},
-      {id:"primo_incontro",l:"Primo incontro",ph:"es. Aldermoor"},
-    ].map(f=>(
+    {[{id:"name",l:"Nome",ph:"Nome"},{id:"role",l:"Ruolo",ph:"es. Mercante"},{id:"icon",l:"Icona",ph:"👤"},{id:"primo_incontro",l:"Primo incontro",ph:"es. Aldermoor"}].map(f=>(
       <div key={f.id} style={{marginBottom:13}}>
         <label style={lbl}>{f.l}</label>
         <input value={vals[f.id]||""} onChange={e=>setVals(v=>({...v,[f.id]:e.target.value}))} placeholder={f.ph} style={inp}/>
@@ -149,7 +323,7 @@ function NpcFormModal({npc, onClose, onSaved}){
     </div>
     <div style={{marginBottom:13}}>
       <label style={lbl}>Relazione</label>
-      <select value={vals.attitude||"neutrale"} onChange={e=>setVals(v=>({...v,attitude:e.target.value}))} style={{...inp,cursor:"pointer"}}>
+      <select value={vals.attitude||"Neutrale"} onChange={e=>setVals(v=>({...v,attitude:e.target.value}))} style={{...inp,cursor:"pointer"}}>
         {["Neutrale","Alleato","Nemico","Sconosciuto"].map(o=><option key={o} value={o} style={{background:C.bg2}}>{o}</option>)}
       </select>
     </div>
@@ -162,35 +336,29 @@ function NpcFormModal({npc, onClose, onSaved}){
   </Modal>;
 }
 
-function GenericModal({title, fields, vals, onClose, onSave, saving, onChange, hasImage, imageBucket, imageField}){
-  const [imgFile, setImgFile] = useState(null);
-  const [imgPreview, setImgPreview] = useState(vals[imageField||"image_path"]||"");
-  const inp = {width:"100%",background:C.bg,border:`1px solid ${C.border2}`,borderRadius:8,color:C.text,fontFamily:"inherit",fontSize:14,padding:"8px 12px",outline:"none",marginTop:4,boxSizing:"border-box"};
-
-  const handleSave = async () => {
-    if(hasImage && imgFile) {
-      const ext = imgFile.name.split(".").pop();
-      const path = `${Date.now()}.${ext}`;
-      const {error:upErr} = await supabase.storage.from(imageBucket).upload(path, imgFile, {upsert:true});
-      if(upErr){ alert("Errore upload: "+upErr.message); return; }
-      const {data:urlData} = supabase.storage.from(imageBucket).getPublicUrl(path);
-      onSave(urlData.publicUrl, imageField);
-    } else {
-      onSave(null, null);
-    }
+function GenericModal({title,fields,vals,onClose,onSave,saving,onChange,hasImage,imageBucket,imageField}){
+  const [imgFile,setImgFile]=useState(null);
+  const [imgPreview,setImgPreview]=useState(vals[imageField||"image_path"]||"");
+  const inp={width:"100%",background:C.bg,border:`1px solid ${C.border2}`,borderRadius:8,color:C.text,fontFamily:"inherit",fontSize:14,padding:"8px 12px",outline:"none",marginTop:4,boxSizing:"border-box"};
+  const handleSave=async()=>{
+    if(hasImage&&imgFile){
+      const ext=imgFile.name.split(".").pop();
+      const path=`${Date.now()}.${ext}`;
+      const {error:upErr}=await supabase.storage.from(imageBucket).upload(path,imgFile,{upsert:true});
+      if(upErr){alert("Errore upload: "+upErr.message);return;}
+      const {data:urlData}=supabase.storage.from(imageBucket).getPublicUrl(path);
+      onSave(urlData.publicUrl,imageField);
+    }else{onSave(null,null);}
   };
-
   return <Modal title={title} onClose={onClose} onSave={handleSave} saving={saving}>
     {hasImage&&<div style={{marginBottom:13}}>
       <label style={{display:"block",fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim}}>Immagine</label>
       <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:8}}>
-        {imgPreview
-          ? <img src={imgPreview} style={{width:"100%",maxHeight:220,objectFit:"cover",borderRadius:10,border:`1px solid ${C.border2}`}}/>
-          : <div style={{width:"100%",height:100,background:C.bg3,borderRadius:10,border:`2px dashed ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,color:C.textMuted}}>🖼️</div>
-        }
+        {imgPreview?<img src={imgPreview} style={{width:"100%",maxHeight:160,objectFit:"cover",borderRadius:10,border:`1px solid ${C.border2}`}}/>
+          :<div style={{width:"100%",height:100,background:C.bg3,borderRadius:10,border:`2px dashed ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,color:C.textMuted}}>🖼️</div>}
         <label style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:"8px 16px",cursor:"pointer",fontSize:12,color:C.textDim,textAlign:"center",width:"100%",boxSizing:"border-box"}}>
           📷 Scegli foto dal telefono
-          <input type="file" accept="image/*" onChange={e=>{const f=e.target.files[0];if(f){setImgFile(f);setImgPreview(URL.createObjectURL(f));onChange(imageField,"");} }} style={{display:"none"}}/>
+          <input type="file" accept="image/*" onChange={e=>{const f=e.target.files[0];if(f){setImgFile(f);setImgPreview(URL.createObjectURL(f));onChange(imageField,"");}}} style={{display:"none"}}/>
         </label>
         {imgPreview&&<button onClick={()=>{setImgFile(null);setImgPreview("");onChange(imageField,"");}} style={{fontSize:11,color:"#f87171",background:"none",border:"none",cursor:"pointer"}}>✕ Rimuovi immagine</button>}
       </div>
@@ -198,53 +366,14 @@ function GenericModal({title, fields, vals, onClose, onSave, saving, onChange, h
     {fields.map(f=>(
       <div key={f.id} style={{marginBottom:13}}>
         <label style={{display:"block",fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim}}>{f.l}</label>
-        {f.sel
-          ? <select value={vals[f.id]||""} onChange={e=>onChange(f.id,e.target.value)} style={{...inp,cursor:"pointer"}}>
-              {f.sel.map(o=><option key={o} value={o} style={{background:C.bg2}}>{o||"—"}</option>)}
-            </select>
-          : f.ta
-            ? <textarea value={vals[f.id]||""} onChange={e=>onChange(f.id,e.target.value)} placeholder={f.ph} style={{...inp,minHeight:80,resize:"vertical"}}/>
-            : <input value={vals[f.id]||""} onChange={e=>onChange(f.id,e.target.value)} placeholder={f.ph} style={inp}/>
-        }
+        {f.sel?<select value={vals[f.id]||""} onChange={e=>onChange(f.id,e.target.value)} style={{...inp,cursor:"pointer"}}>
+            {f.sel.map(o=><option key={o} value={o} style={{background:C.bg2}}>{o||"—"}</option>)}
+          </select>
+          :f.ta?<textarea value={vals[f.id]||""} onChange={e=>onChange(f.id,e.target.value)} placeholder={f.ph} style={{...inp,minHeight:80,resize:"vertical"}}/>
+          :<input value={vals[f.id]||""} onChange={e=>onChange(f.id,e.target.value)} placeholder={f.ph} style={inp}/>}
       </div>
     ))}
   </Modal>;
-}
-
-function PinModal({onSuccess,onClose}){
-  const [val,setVal]=useState("");
-  const [err,setErr]=useState("");
-  const press = d => {
-    if(val.length>=4)return;
-    const next=val+d;
-    setVal(next);
-    if(next.length===4){
-      setTimeout(()=>{
-        if(next===DM_PIN){onSuccess();}
-        else{setErr("PIN errato");setVal("");}
-      },80);
-    }
-  };
-  return <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.88)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
-    <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,width:280,padding:"20px 20px 16px",boxShadow:`0 0 32px ${C.goldGlow}`}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-        <span style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.gold}}>🔐 Accesso DM</span>
-        <button onClick={onClose} style={{background:"none",border:"none",fontSize:20,color:C.textDim,cursor:"pointer"}}>✕</button>
-      </div>
-      <div style={{display:"flex",gap:12,justifyContent:"center",margin:"0 0 16px"}}>
-        {[0,1,2,3].map(i=><div key={i} style={{width:13,height:13,borderRadius:"50%",border:`2px solid ${i<val.length?C.gold:C.border2}`,background:i<val.length?C.gold:"transparent",transition:"all .15s"}}/>)}
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,maxWidth:210,margin:"0 auto"}}>
-        {["1","2","3","4","5","6","7","8","9","CLR","0","⌫"].map(k=>(
-          <button key={k} onClick={()=>k==="CLR"?setVal(""):k==="⌫"?setVal(v=>v.slice(0,-1)):press(k)}
-            style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,color:C.text,fontSize:k.length>1?11:18,fontWeight:500,padding:"13px 0",cursor:"pointer"}}>
-            {k}
-          </button>
-        ))}
-      </div>
-      <div style={{textAlign:"center",fontSize:11,fontWeight:600,color:C.gold,marginTop:8,minHeight:16}}>{err}</div>
-    </div>
-  </div>;
 }
 
 function NpcPanel({npc,onClose}){
@@ -258,10 +387,8 @@ function NpcPanel({npc,onClose}){
       </div>
       <div style={{textAlign:"center",padding:"0 0 14px",color:C.goldDim,fontSize:12}}>✦</div>
       <div style={{padding:"0 20px 16px"}}>
-        {npc.img_url
-          ? <img src={npc.img_url} alt={npc.name} style={{width:"100%",aspectRatio:"2/3",borderRadius:12,border:`2px solid ${C.gold}`,objectFit:"cover",objectPosition:"center top",display:"block"}}/>
-          : <div style={{width:"100%",height:200,background:C.bg3,borderRadius:12,border:`1px solid ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:56}}>{npc.icon||"👤"}</div>
-        }
+        {npc.img_url?<img src={npc.img_url} alt={npc.name} style={{width:"100%",aspectRatio:"2/3",borderRadius:12,border:`2px solid ${C.gold}`,objectFit:"cover",objectPosition:"center top",display:"block"}}/>
+          :<div style={{width:"100%",height:200,background:C.bg3,borderRadius:12,border:`1px solid ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:56}}>{npc.icon||"👤"}</div>}
       </div>
       <div style={{padding:"0 20px 32px"}}>
         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
@@ -275,124 +402,29 @@ function NpcPanel({npc,onClose}){
   </div>;
 }
 
-function CharSheet({p,idx,isAuth,onEdit,onHpChange}){
-  const [tab,setTab]=useState("scheda");
-  const tabs=["scheda","incantesimi","inventario","famigli","note session"];
-  const hpPct=p.hpMax>0?Math.max(0,Math.min(100,(p.hp/p.hpMax)*100)):0;
-  const hpColor=hpPct>60?C.green:hpPct>25?C.yellow:"#f87171";
-  const statBox=(lbl,val)=>(
-    <div style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 8px",textAlign:"center"}}>
-      <div style={{fontSize:9,fontWeight:700,letterSpacing:".18em",textTransform:"uppercase",color:C.textDim}}>{lbl}</div>
-      <div style={{fontFamily:"'Cinzel',serif",fontSize:22,fontWeight:700,color:C.text,marginTop:3}}>{val}</div>
-    </div>
-  );
-  return <div style={{maxWidth:520,margin:"0 auto"}}>
-    <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:16}}>
-      <div style={{width:72,height:72,borderRadius:"50%",border:`3px solid ${p.color||C.gold}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,background:C.bg3,flexShrink:0}}>{p.icon||"🛡️"}</div>
-      <div>
-        <div style={{fontFamily:"'Cinzel',serif",fontSize:22,fontWeight:700,color:C.text}}>{p.name}</div>
-        <div style={{fontSize:13,color:C.textDim,marginTop:3}}>{p.sub}</div>
-      </div>
-    </div>
-    <div style={{display:"flex",gap:2,background:C.bg3,borderRadius:10,padding:3,marginBottom:16,overflowX:"auto"}}>
-      {tabs.map(t=>(
-        <button key={t} onClick={()=>setTab(t)} style={{fontSize:12,fontWeight:tab===t?600:400,padding:"7px 13px",borderRadius:8,border:"none",background:tab===t?C.gold:"transparent",color:tab===t?"#0b1120":C.textDim,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>{t}</button>
-      ))}
-    </div>
-    {tab==="scheda"&&<>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
-        {statBox("CA",p.ca||0)}{statBox("Livello",p.livello||1)}
-        <div style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 8px",textAlign:"center"}}>
-          <div style={{fontSize:9,fontWeight:700,letterSpacing:".18em",textTransform:"uppercase",color:C.textDim}}>Background</div>
-          <div style={{fontFamily:"'Cinzel',serif",fontSize:13,fontWeight:700,color:C.text,marginTop:5}}>{p.background||"—"}</div>
-        </div>
-      </div>
-      <Card style={{marginBottom:12}}>
-        <div style={{fontSize:13,color:C.textDim,marginBottom:10}}>Punti Ferita</div>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <button onClick={()=>onHpChange(idx,-1)} style={{width:36,height:36,borderRadius:"50%",border:"2px solid #f87171",background:"transparent",color:"#f87171",fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700}}>−</button>
-          <div style={{fontFamily:"'Cinzel',serif",fontSize:22,fontWeight:700,color:C.text,background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:"6px 14px",minWidth:60,textAlign:"center"}}>{p.hp}</div>
-          <div style={{fontSize:13,color:C.textDim}}>/ {p.hpMax}</div>
-          <button onClick={()=>onHpChange(idx,1)} style={{width:36,height:36,borderRadius:"50%",border:`2px solid ${C.green}`,background:"transparent",color:C.green,fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,marginLeft:"auto"}}>+</button>
-        </div>
-        <div style={{height:6,background:C.bg4,borderRadius:3,overflow:"hidden",marginTop:10}}>
-          <div style={{height:"100%",width:`${hpPct}%`,background:hpColor,borderRadius:3,transition:"width .3s"}}/>
-        </div>
-      </Card>
-      <Card style={{marginBottom:12}}>
-        <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:10}}>Caratteristiche</div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:6}}>
-          {["for","des","cos","int","sag","car"].map(s=>(
-            <div key={s} style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 4px",textAlign:"center"}}>
-              <div style={{fontSize:9,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:C.textDim}}>{s.toUpperCase()}</div>
-              <div style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.text,margin:"3px 0"}}>{p[s]||10}</div>
-              <div style={{fontSize:11,fontWeight:600,color:C.gold}}>{fmtMod(mod(p[s]||10))}</div>
-            </div>
-          ))}
-        </div>
-      </Card>
-      <Card>
-        <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:10,display:"flex",justifyContent:"space-between"}}>
-          <span>Abilità</span><span style={{fontWeight:400,color:C.textMuted}}>comp +{Math.ceil((p.livello||1)/4)+1}</span>
-        </div>
-        {ABILITA.map(a=>(
-          <div key={a.n} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 2px"}}>
-            <div style={{width:14,height:14,borderRadius:"50%",border:`2px solid ${C.border2}`,flexShrink:0}}/>
-            <div style={{fontSize:13,fontWeight:600,color:C.text,width:30}}>{fmtMod(mod(p[a.s]||10))}</div>
-            <div style={{fontSize:13,color:C.textDim,flex:1}}>{a.n}</div>
-            <div style={{width:28,height:28,background:C.bg3,border:`1px solid ${C.border}`,borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:C.textMuted}}>—</div>
-          </div>
-        ))}
-      </Card>
-    </>}
-    {tab==="inventario"&&<Card><div style={{textAlign:"center",padding:"40px 20px",color:C.textMuted,fontSize:13,fontStyle:"italic"}}>Inventario vuoto</div></Card>}
-    {tab==="incantesimi"&&<Card><div style={{textAlign:"center",padding:"40px 20px",color:C.textMuted,fontSize:13,fontStyle:"italic"}}>Nessun incantesimo</div></Card>}
-    {tab==="famigli"&&<Card><div style={{textAlign:"center",padding:"40px 20px",color:C.textMuted,fontSize:13,fontStyle:"italic"}}>Nessun famiglio</div></Card>}
-    {tab==="note session"&&<Card><div style={{textAlign:"center",padding:"40px 20px",color:C.textMuted,fontSize:13,fontStyle:"italic"}}>Nessuna nota</div></Card>}
-    {isAuth&&<div style={{display:"flex",gap:6,marginTop:12,justifyContent:"center"}}><Btn onClick={()=>onEdit(p)}>✏ Modifica</Btn></div>}
-  </div>;
-}
-
-// ── TABLE CONFIG ──
 const TABLE_MAP = {
-  sessioni: { table:"sessions", fields:[
-    {id:"num",l:"Numero",ph:"es. I"},{id:"title",l:"Titolo",ph:"Titolo..."},
-    {id:"date",l:"Data",ph:"es. 1 Gen 2025"},{id:"excerpt",l:"Riassunto",ph:"Cosa è successo...",ta:true}
-  ]},
-  gilda: { table:"factions", fields:[
-    {id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"🏴"},
-    {id:"rank",l:"Rango",ph:"es. Fondatori"},{id:"description",l:"Descrizione",ph:"...",ta:true},
-    {id:"sede",l:"Sede",ph:"es. Porto di Arenmar"},{id:"influence",l:"Potere %",ph:"0-100"}
-  ]},
-  fazioni: { table:"factions", fields:[
-    {id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"⚔️"},
-    {id:"description",l:"Descrizione",ph:"...",ta:true},{id:"influence",l:"Influenza %",ph:"0-100"}
-  ]},
-  mondo: { table:"locations", fields:[
-    {id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"🏰"},{id:"sub",l:"Descrizione",ph:"...",ta:true}
-  ]},
-  cronologia: { table:"timeline", fields:[
-    {id:"date",l:"Data",ph:"Anno 1, Giorno X"},{id:"title",l:"Titolo",ph:"Evento..."},
-    {id:"description",l:"Descrizione",ph:"Cosa accadde...",ta:true}
-  ], hasImage:true, imageBucket:"timeline-images", imageField:"image_path"},
-
-  tomo: { table:"tome", fields:[
-    {id:"title",l:"Titolo",ph:"Segreto..."},{id:"text",l:"Contenuto",ph:"...",ta:true},
-    {id:"locked",l:"Bloccato?",sel:["false","true"]}
-  ]},
+  sessioni:{table:"sessions",fields:[{id:"num",l:"Numero",ph:"es. I"},{id:"title",l:"Titolo",ph:"Titolo..."},{id:"date",l:"Data",ph:"es. 1 Gen 2025"},{id:"excerpt",l:"Riassunto",ph:"Cosa è successo...",ta:true}]},
+  gilda:{table:"factions",fields:[{id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"🏴"},{id:"rank",l:"Rango",ph:"es. Fondatori"},{id:"description",l:"Descrizione",ph:"...",ta:true},{id:"sede",l:"Sede",ph:"es. Porto di Arenmar"},{id:"influence",l:"Potere %",ph:"0-100"}]},
+  fazioni:{table:"factions",fields:[{id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"⚔️"},{id:"description",l:"Descrizione",ph:"...",ta:true},{id:"influence",l:"Influenza %",ph:"0-100"}]},
+  mondo:{table:"locations",fields:[{id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"🏰"},{id:"sub",l:"Descrizione",ph:"...",ta:true}]},
+  cronologia:{table:"timeline",fields:[{id:"date",l:"Data",ph:"Anno 1, Giorno X"},{id:"title",l:"Titolo",ph:"Evento..."},{id:"description",l:"Descrizione",ph:"Cosa accadde...",ta:true}],hasImage:true,imageBucket:"timeline-images",imageField:"image_path"},
+  tomo:{table:"tome",fields:[{id:"title",l:"Titolo",ph:"Segreto..."},{id:"text",l:"Contenuto",ph:"...",ta:true},{id:"locked",l:"Bloccato?",sel:["false","true"]}]},
 };
 
 export default function App(){
+  const [user,setUser]=useState(()=>{
+    try{
+      const s=localStorage.getItem("tp_user");
+      return s?JSON.parse(s):null;
+    }catch(e){return null;}
+  });
   const [data,setData]=useState({sessioni:[],npc:[],gilda:[],fazioni:[],mondo:[],cronologia:[],tomo:[],map_pins:[],map_config:null});
   const [loading,setLoading]=useState(true);
   const [view,setView]=useState("sessioni");
-  const [isAuth,setIsAuth]=useState(()=>{ try{ return localStorage.getItem("dm_auth")==="true"; }catch(e){ return false; } });
   const [sidebarOpen,setSidebarOpen]=useState(false);
-  const [showPin,setShowPin]=useState(false);
   const [npcOpen,setNpcOpen]=useState(null);
-  const [modal,setModal]=useState(null); // {view, item|null}
-  const [npcModal,setNpcModal]=useState(null); // npc obj or "new"
-  const [genericModal,setGenericModal]=useState(null); // {view, item}
+  const [npcModal,setNpcModal]=useState(null);
+  const [genericModal,setGenericModal]=useState(null);
   const [genericVals,setGenericVals]=useState({});
   const [saving,setSaving]=useState(false);
   const [pinModal,setPinModal]=useState(null);
@@ -400,13 +432,23 @@ export default function App(){
   const [mapUploading,setMapUploading]=useState(false);
   const [pendingPin,setPendingPin]=useState(false);
 
+  const isAuth = user?.role==="dm";
   const TITLES={sessioni:"Sessioni",npc:"NPC",mappa:"Mappa",gilda:"Gilda",fazioni:"Fazioni",mondo:"Fogli del Mondo",cronologia:"Cronologia",tomo:"Tomo Segreto"};
 
-  // ── LOAD DATA ──
-  const loadAll = async () => {
+  const handleLogin = (u) => {
+    setUser(u);
+    try{localStorage.setItem("tp_user",JSON.stringify(u));}catch(e){}
+  };
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    try{localStorage.removeItem("tp_user");}catch(e){}
+  };
+
+  const loadAll=async()=>{
     setLoading(true);
-    try {
-      const [npcs, sessions, factions, locations, timeline, tome, map_pins, map_config] = await Promise.all([
+    try{
+      const [npcs,sessions,factions,locations,timeline,tome,map_pins,map_config]=await Promise.all([
         supabase.from("npcs").select("*").order("created_at",{ascending:false}),
         supabase.from("sessions").select("*").order("created_at",{ascending:false}),
         supabase.from("factions").select("*").order("created_at",{ascending:false}),
@@ -417,89 +459,64 @@ export default function App(){
         supabase.from("map_config").select("*").limit(1),
       ]);
       setData(d=>({...d,
-        npc: npcs.data||[],
-        sessioni: sessions.data||[],
-        gilda: factions.data||[],
-        fazioni: factions.data||[],
-        mondo: locations.data||[],
-        cronologia: timeline.data||[],
-        tomo: tome.data||[],
-        map_pins: map_pins.data||[],
-        map_config: map_config.data?.[0]||null,
+        npc:npcs.data||[],sessioni:sessions.data||[],gilda:factions.data||[],
+        fazioni:factions.data||[],mondo:locations.data||[],cronologia:timeline.data||[],
+        tomo:tome.data||[],map_pins:map_pins.data||[],map_config:map_config.data?.[0]||null,
       }));
-    } catch(e){ console.error(e); }
+    }catch(e){console.error(e);}
     setLoading(false);
   };
 
-  useEffect(()=>{ loadAll(); },[]);
+  useEffect(()=>{
+    if(user?.role==="dm"){ loadAll(); const i=setInterval(loadAll,30000); return()=>clearInterval(i); }
+  },[user]);
+
+  if(!user) return <LoginScreen onLogin={handleLogin}/>;
+  if(user.role==="player") return <PlayerView user={user} onLogout={handleLogout}/>;
 
   const nav=(v)=>{setView(v);setSidebarOpen(false);};
-  const toggleDm=()=>{ if(isAuth){ setIsAuth(false); try{localStorage.removeItem("dm_auth");}catch(e){} }else{setShowPin(true);} };
 
-  // ── NPC ──
-  const openNpcAdd = () => { if(!isAuth){setShowPin(true);return;} setNpcModal({}); };
-  const openNpcEdit = (npc) => setNpcModal(npc);
-  const deleteNpc = async (id) => {
-    if(!window.confirm("Eliminare?"))return;
-    await supabase.from("npcs").delete().eq("id",id);
-    loadAll();
-  };
+  const openNpcAdd=()=>setNpcModal({});
+  const openNpcEdit=(npc)=>setNpcModal(npc);
+  const deleteNpc=async(id)=>{if(!window.confirm("Eliminare?"))return;await supabase.from("npcs").delete().eq("id",id);loadAll();};
 
-  // ── GENERIC CRUD ──
-  const openGenericAdd = () => {
-    if(!isAuth){setShowPin(true);return;}
-    setGenericVals({});
-    setGenericModal({view, item:null});
-  };
-  const openGenericEdit = (v, item) => {
-    setGenericVals({...item});
-    setGenericModal({view:v, item});
-  };
-  const saveGeneric = async (imgUrl=null, imgField=null) => {
+  const openGenericAdd=()=>{setGenericVals({});setGenericModal({view,item:null});};
+  const openGenericEdit=(v,item)=>{setGenericVals({...item});setGenericModal({view:v,item});};
+  const saveGeneric=async(imgUrl=null,imgField=null)=>{
     if(!genericModal)return;
     setSaving(true);
-    const cfg = TABLE_MAP[genericModal.view];
+    const cfg=TABLE_MAP[genericModal.view];
     if(!cfg){setSaving(false);return;}
     const numFields=["influence","hp","hpMax","ca","livello","for","des","cos","int","sag","car"];
     const obj={...genericVals};
-    if(imgUrl && imgField) obj[imgField] = imgUrl;
-    numFields.forEach(f=>{ if(obj[f]!==undefined) obj[f]=parseInt(obj[f])||0; });
-    if(obj.locked!==undefined) obj.locked=obj.locked==="true"||obj.locked===true;
-    delete obj.id; delete obj.created_at;
-    try {
-      if(genericModal.item?.id){
-        await supabase.from(cfg.table).update(obj).eq("id",genericModal.item.id);
-      } else {
-        await supabase.from(cfg.table).insert(obj);
-      }
-      setGenericModal(null);
-      loadAll();
-    } catch(e){ alert("Errore: "+e.message); }
+    if(imgUrl&&imgField)obj[imgField]=imgUrl;
+    numFields.forEach(f=>{if(obj[f]!==undefined)obj[f]=parseInt(obj[f])||0;});
+    if(obj.locked!==undefined)obj.locked=obj.locked==="true"||obj.locked===true;
+    delete obj.id;delete obj.created_at;
+    try{
+      if(genericModal.item?.id){await supabase.from(cfg.table).update(obj).eq("id",genericModal.item.id);}
+      else{await supabase.from(cfg.table).insert(obj);}
+      setGenericModal(null);loadAll();
+    }catch(e){alert("Errore: "+e.message);}
     setSaving(false);
   };
-  const deleteGeneric = async (v, id) => {
+  const deleteGeneric=async(v,id)=>{
     if(!window.confirm("Eliminare?"))return;
-    const cfg = TABLE_MAP[v];
-    if(!cfg)return;
-    await supabase.from(cfg.table).delete().eq("id",id);
-    loadAll();
+    const cfg=TABLE_MAP[v];if(!cfg)return;
+    await supabase.from(cfg.table).delete().eq("id",id);loadAll();
   };
 
-  const openAdd = () => {
-    if(view==="npc") openNpcAdd();
-    else if(TABLE_MAP[view]) openGenericAdd();
-  };
+  const openAdd=()=>{if(view==="npc")openNpcAdd();else if(TABLE_MAP[view])openGenericAdd();};
 
-  const EditBtns = ({v, item}) => isAuth ? <div style={{display:"flex",gap:6,marginTop:10,paddingTop:9,borderTop:`1px solid ${C.border}`}}>
-    <Btn onClick={()=>{ if(v==="npc") openNpcEdit(item); else openGenericEdit(v,item); }}>✏ Modifica</Btn>
-    <Btn onClick={()=>{ if(v==="npc") deleteNpc(item.id); else deleteGeneric(v,item.id); }}>✕</Btn>
-  </div> : null;
+  const EditBtns=({v,item})=>isAuth?<div style={{display:"flex",gap:6,marginTop:10,paddingTop:9,borderTop:`1px solid ${C.border}`}}>
+    <Btn onClick={()=>{if(v==="npc")openNpcEdit(item);else openGenericEdit(v,item);}}>✏ Modifica</Btn>
+    <Btn onClick={()=>{if(v==="npc")deleteNpc(item.id);else deleteGeneric(v,item.id);}}>✕</Btn>
+  </div>:null;
 
   const renderContent=()=>{
-    if(loading) return <div style={{textAlign:"center",padding:"60px 20px",color:C.textDim,fontSize:14}}>Caricamento...</div>;
-
+    if(loading)return <div style={{textAlign:"center",padding:"60px 20px",color:C.textDim,fontSize:14}}>Caricamento...</div>;
     switch(view){
-      case "sessioni": return !data.sessioni.length?<EmptyState msg="Nessuna sessione ancora"/>:
+      case "sessioni":return !data.sessioni.length?<EmptyState msg="Nessuna sessione ancora"/>:
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
           {data.sessioni.map((s,i)=>(
             <div key={s.id||i} style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:16,position:"relative",overflow:"hidden"}}>
@@ -513,7 +530,7 @@ export default function App(){
           ))}
         </div>;
 
-      case "npc": return !data.npc.length?<EmptyState msg="Nessun NPC ancora"/>:
+      case "npc":return !data.npc.length?<EmptyState msg="Nessun NPC ancora"/>:
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {data.npc.map((n,i)=>(
             <div key={n.id||i} style={{display:"flex",alignItems:"center",gap:12,background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",cursor:"pointer"}} onClick={()=>setNpcOpen(n)}>
@@ -533,7 +550,7 @@ export default function App(){
           ))}
         </div>;
 
-      case "gilda": return <div>
+      case "gilda":return <div>
         <div style={{textAlign:"center",padding:"16px 0 24px"}}>
           <div style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.gold,textShadow:`0 0 24px ${C.goldGlow}`}}>La Gilda</div>
           <div style={{fontSize:10,fontWeight:600,letterSpacing:".2em",textTransform:"uppercase",color:C.textMuted,marginTop:4}}>Fratellanza & Alleanze</div>
@@ -555,7 +572,7 @@ export default function App(){
         ))}
       </div>;
 
-      case "fazioni": return !data.fazioni.length?<EmptyState msg="Nessuna fazione ancora"/>:
+      case "fazioni":return !data.fazioni.length?<EmptyState msg="Nessuna fazione ancora"/>:
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {data.fazioni.map((f,i)=>(
             <div key={f.id||i} style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:14,display:"flex",gap:12}}>
@@ -571,7 +588,7 @@ export default function App(){
           ))}
         </div>;
 
-      case "mondo": return !data.mondo.length?<EmptyState msg="Nessun luogo ancora"/>:
+      case "mondo":return !data.mondo.length?<EmptyState msg="Nessun luogo ancora"/>:
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:12}}>
           {data.mondo.map((w,i)=>(
             <div key={w.id||i} style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
@@ -585,7 +602,7 @@ export default function App(){
           ))}
         </div>;
 
-      case "cronologia": return !data.cronologia.length?<EmptyState msg="Nessun evento ancora"/>:
+      case "cronologia":return !data.cronologia.length?<EmptyState msg="Nessun evento ancora"/>:
         <div style={{position:"relative",paddingLeft:26}}>
           <div style={{position:"absolute",left:5,top:0,bottom:0,width:1,background:`linear-gradient(to bottom,${C.goldDim},transparent)`}}/>
           {data.cronologia.map((c,i)=>(
@@ -594,16 +611,13 @@ export default function App(){
               <div style={{fontSize:10,fontWeight:600,letterSpacing:".15em",textTransform:"uppercase",color:C.goldDim,marginBottom:3}}>{c.date}</div>
               <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text,marginBottom:4}}>{c.title}</div>
               <div style={{fontSize:13,color:C.textDim,fontStyle:"italic",lineHeight:1.55}}>{c.description}</div>
-              {c.image_path&&<img src={c.image_path} alt={c.title} style={{width:"100%",borderRadius:10,border:`1px solid ${C.border2}`,objectFit:"cover",maxHeight:220,marginTop:8,display:"block"}}/>}
+              {c.image_path&&<img src={c.image_path} alt={c.title} style={{width:"100%",borderRadius:10,border:`1px solid ${C.border2}`,objectFit:"cover",maxHeight:160,marginTop:8,display:"block"}}/>}
               <EditBtns v="cronologia" item={c}/>
             </div>
           ))}
         </div>;
 
-
-
-
-      case "tomo": return <div>
+      case "tomo":return <div>
         <div style={{textAlign:"center",padding:"16px 0 24px"}}>
           <div style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.gold,textShadow:`0 0 24px ${C.goldGlow}`}}>Tomo Segreto</div>
           <div style={{fontSize:10,fontWeight:600,letterSpacing:".2em",textTransform:"uppercase",color:C.textMuted,marginTop:4}}>Solo DM</div>
@@ -611,96 +625,63 @@ export default function App(){
         {!data.tomo.length?<EmptyState msg="Nessun segreto ancora"/>:data.tomo.map((t,i)=>(
           <div key={t.id||i} style={{background:C.bg2,border:`1px solid ${C.border}`,borderLeft:`3px solid ${C.goldDim}`,borderRadius:12,padding:"14px 16px",marginBottom:10}}>
             <div style={{fontFamily:"'Cinzel',serif",fontSize:13,fontWeight:600,color:C.text,marginBottom:7}}>{t.title}</div>
-            {t.locked?<><div style={{fontSize:13,color:C.textDim,fontStyle:"italic"}}>[SIGILLATO]</div><span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:600,letterSpacing:".1em",textTransform:"uppercase",color:C.goldDim,border:`1px solid ${C.goldDim}`,borderRadius:5,padding:"2px 8px",marginTop:7}}>🔒 Bloccato</span></>:<div style={{fontSize:13,color:C.textDim,fontStyle:"italic",lineHeight:1.65}}>{t.text}</div>}
+            {t.locked?<><div style={{fontSize:13,color:C.textDim,fontStyle:"italic"}}>[SIGILLATO]</div><span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:600,letterSpacing:".1em",textTransform:"uppercase",color:C.goldDim,border:`1px solid ${C.goldDim}`,borderRadius:5,padding:"2px 8px",marginTop:7}}>🔒 Bloccato</span></>
+              :<div style={{fontSize:13,color:C.textDim,fontStyle:"italic",lineHeight:1.65}}>{t.text}</div>}
             <EditBtns v="tomo" item={t}/>
           </div>
         ))}
       </div>;
 
-      case "mappa": {
-        const mapImg = data.map_config?.map_path;
+      case "mappa":{
+        const mapImg=data.map_config?.map_path;
         return <div>
           <div style={{position:"relative",background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden",marginBottom:12}}>
-            {mapImg
-              ? <div style={{position:"relative"}}>
-                  <img src={mapImg} style={{width:"100%",display:"block",borderRadius:12,maxHeight:520,objectFit:"contain"}}/>
-                  {data.map_pins.map((pin,i)=>(
-                    <div key={pin.id||i}
-                      onClick={()=>setPinModal({item:pin,view:"pin_detail"})}
-                      style={{position:"absolute",left:`${pin.x_percent}%`,top:`${pin.y_percent}%`,transform:"translate(-50%,-50%)",cursor:"pointer",zIndex:10}}>
-                      <div style={{width:18,height:18,borderRadius:"50%",background:pin.status==="nemico"?"#f87171":pin.status==="alleato"?"#4ade80":C.gold,border:"2px solid #fff",boxShadow:"0 0 8px rgba(0,0,0,.6)"}}/>
-                      <div style={{position:"absolute",bottom:"calc(100% + 4px)",left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,.85)",color:"#fff",fontSize:10,fontWeight:600,padding:"2px 6px",borderRadius:4,whiteSpace:"nowrap"}}>{pin.name}</div>
-                    </div>
-                  ))}
-                  {pendingPin&&<div style={{position:"absolute",inset:0,cursor:"crosshair",zIndex:21}} onClick={e=>{
-                    const rect=e.currentTarget.getBoundingClientRect();
-                    const x=((e.clientX-rect.left)/rect.width*100).toFixed(1);
-                    const y=((e.clientY-rect.top)/rect.height*100).toFixed(1);
-                    setPinVals({x_percent:x,y_percent:y,name:"",description:"",status:"neutrale"});
-                    setPendingPin(false);
-                    setPinModal({item:null,view:"pin_form"});
-                  }}/>}
-                  {pendingPin&&<div style={{position:"absolute",inset:0,background:"rgba(212,160,23,.08)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:20,pointerEvents:"none"}}>
-                    <div style={{background:"rgba(0,0,0,.8)",color:C.gold,padding:"10px 20px",borderRadius:10,fontSize:13,fontWeight:600}}>Clicca sulla mappa per posizionare il pin</div>
-                  </div>}
-                </div>
-              : <div style={{height:300,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
-                  <div style={{fontSize:40,opacity:.3}}>🗺️</div>
-                  <div style={{fontSize:13,color:C.textMuted}}>Nessuna mappa caricata</div>
-                  {isAuth&&<label style={{background:C.gold,color:"#0b1120",fontWeight:600,fontSize:12,padding:"8px 18px",borderRadius:8,cursor:"pointer"}}>
-                    📷 Carica mappa
-                    <input type="file" accept="image/*" onChange={async e=>{
-                      const f=e.target.files[0]; if(!f)return;
-                      setMapUploading(true);
-                      const path=`maps/${Date.now()}.${f.name.split(".").pop()}`;
-                      const {error:upErr}=await supabase.storage.from("map-images").upload(path,f,{upsert:true});
-                      if(upErr){alert("Errore: "+upErr.message);setMapUploading(false);return;}
-                      const {data:urlData}=supabase.storage.from("map-images").getPublicUrl(path);
-                      await supabase.from("map_config").upsert({id:1,map_path:urlData.publicUrl});
-                      setMapUploading(false);
-                      loadAll();
-                    }} style={{display:"none"}}/>
-                  </label>}
-                  {mapUploading&&<div style={{fontSize:12,color:C.gold}}>Caricamento...</div>}
-                </div>
-            }
+            {mapImg?<div style={{position:"relative"}}>
+                <img src={mapImg} style={{width:"100%",display:"block",borderRadius:12,maxHeight:520,objectFit:"contain"}}/>
+                {data.map_pins.map((pin,i)=>(
+                  <div key={pin.id||i} onClick={()=>setPinModal({item:pin,view:"pin_detail"})}
+                    style={{position:"absolute",left:`${pin.x_percent}%`,top:`${pin.y_percent}%`,transform:"translate(-50%,-50%)",cursor:"pointer",zIndex:10}}>
+                    <div style={{width:18,height:18,borderRadius:"50%",background:pin.status==="nemico"?"#f87171":pin.status==="alleato"?"#4ade80":C.gold,border:"2px solid #fff",boxShadow:"0 0 8px rgba(0,0,0,.6)"}}/>
+                    <div style={{position:"absolute",bottom:"calc(100% + 4px)",left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,.85)",color:"#fff",fontSize:10,fontWeight:600,padding:"2px 6px",borderRadius:4,whiteSpace:"nowrap"}}>{pin.name}</div>
+                  </div>
+                ))}
+                {pendingPin&&<div style={{position:"absolute",inset:0,cursor:"crosshair",zIndex:21}} onClick={e=>{
+                  const rect=e.currentTarget.getBoundingClientRect();
+                  const x=((e.clientX-rect.left)/rect.width*100).toFixed(1);
+                  const y=((e.clientY-rect.top)/rect.height*100).toFixed(1);
+                  setPinVals({x_percent:x,y_percent:y,name:"",description:"",status:"neutrale"});
+                  setPendingPin(false);setPinModal({item:null,view:"pin_form"});
+                }}/>}
+                {pendingPin&&<div style={{position:"absolute",inset:0,background:"rgba(212,160,23,.08)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:20,pointerEvents:"none"}}>
+                  <div style={{background:"rgba(0,0,0,.8)",color:C.gold,padding:"10px 20px",borderRadius:10,fontSize:13,fontWeight:600}}>Clicca sulla mappa per posizionare il pin</div>
+                </div>}
+              </div>
+              :<div style={{height:300,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
+                <div style={{fontSize:40,opacity:.3}}>🗺️</div>
+                <div style={{fontSize:13,color:C.textMuted}}>Nessuna mappa caricata</div>
+              </div>}
           </div>
           {isAuth&&<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-            {mapImg&&<label style={{background:C.bg2,border:`1px solid ${C.border2}`,color:C.textDim,fontWeight:600,fontSize:12,padding:"7px 14px",borderRadius:8,cursor:"pointer"}}>
-              🗺️ Cambia mappa
+            <label style={{background:mapImg?C.bg2:C.gold,border:mapImg?`1px solid ${C.border2}`:"none",color:mapImg?C.textDim:"#0b1120",fontWeight:600,fontSize:12,padding:"7px 14px",borderRadius:8,cursor:"pointer"}}>
+              {mapImg?"🗺️ Cambia mappa":"📷 Carica mappa"}
               <input type="file" accept="image/*" onChange={async e=>{
-                const f=e.target.files[0]; if(!f)return;
+                const f=e.target.files[0];if(!f)return;
                 setMapUploading(true);
                 const path=`maps/${Date.now()}.${f.name.split(".").pop()}`;
                 const {error:upErr}=await supabase.storage.from("map-images").upload(path,f,{upsert:true});
                 if(upErr){alert("Errore: "+upErr.message);setMapUploading(false);return;}
                 const {data:urlData}=supabase.storage.from("map-images").getPublicUrl(path);
                 await supabase.from("map_config").upsert({id:1,map_path:urlData.publicUrl});
-                setMapUploading(false);
-                loadAll();
+                setMapUploading(false);loadAll();
               }} style={{display:"none"}}/>
-            </label>}
-            {!mapImg&&<label style={{background:C.gold,color:"#0b1120",fontWeight:600,fontSize:12,padding:"7px 14px",borderRadius:8,cursor:"pointer"}}>
-              📷 Carica mappa
-              <input type="file" accept="image/*" onChange={async e=>{
-                const f=e.target.files[0]; if(!f)return;
-                setMapUploading(true);
-                const path=`maps/${Date.now()}.${f.name.split(".").pop()}`;
-                const {error:upErr}=await supabase.storage.from("map-images").upload(path,f,{upsert:true});
-                if(upErr){alert("Errore: "+upErr.message);setMapUploading(false);return;}
-                const {data:urlData}=supabase.storage.from("map-images").getPublicUrl(path);
-                await supabase.from("map_config").upsert({id:1,map_path:urlData.publicUrl});
-                setMapUploading(false);
-                loadAll();
-              }} style={{display:"none"}}/>
-            </label>}
+            </label>
             {mapImg&&<Btn primary onClick={()=>setPendingPin(true)}>+ Aggiungi Pin</Btn>}
           </div>}
           {mapUploading&&<div style={{fontSize:12,color:C.gold,marginTop:8}}>Caricamento in corso...</div>}
         </div>;
       }
 
-      default: return <EmptyState msg="In costruzione"/>;
+      default:return <EmptyState msg="In costruzione"/>;
     }
   };
 
@@ -713,7 +694,6 @@ export default function App(){
 
   return <div style={{display:"flex",height:"100vh",overflow:"hidden",background:C.bg,color:C.text,fontFamily:"'Inter',sans-serif"}}>
     {sidebarOpen&&<div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:49,backdropFilter:"blur(3px)"}}/>}
-
     <aside style={{width:260,background:C.panel,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0,overflowY:"auto",position:"fixed",top:0,left:0,bottom:0,zIndex:50,transform:sidebarOpen?"translateX(0)":"translateX(-100%)",transition:"transform .3s cubic-bezier(.4,0,.2,1)"}}>
       <div style={{padding:"22px 18px 18px",borderBottom:`1px solid ${C.border}`}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -739,8 +719,10 @@ export default function App(){
           <span style={{fontSize:14,width:18,textAlign:"center"}}>🔒</span>Tomo Segreto
         </div>
       </div>
+      <div style={{marginTop:"auto",padding:"14px 18px",borderTop:`1px solid ${C.border}`}}>
+        <Btn onClick={handleLogout} style={{width:"100%"}}>Esci</Btn>
+      </div>
     </aside>
-
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 20px",borderBottom:`1px solid ${C.border}`,background:C.bg2,gap:10,flexShrink:0}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -748,17 +730,24 @@ export default function App(){
           <div style={{width:26,height:26,borderRadius:"50%",background:`radial-gradient(circle at 35% 35%,${C.gold},${C.goldDim})`,boxShadow:`0 0 10px ${C.goldGlow}`,flexShrink:0}}/>
           <span style={{fontFamily:"'Cinzel',serif",fontSize:16,fontWeight:600,color:C.gold,letterSpacing:".06em"}}>{TITLES[view]||view}</span>
         </div>
-        <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <button onClick={toggleDm} style={{fontSize:12,fontWeight:500,padding:"6px 14px",border:`1px solid ${isAuth?C.gold:C.border2}`,borderRadius:8,background:isAuth?C.gold:"transparent",color:isAuth?"#0b1120":C.textDim,cursor:"pointer",boxShadow:isAuth?`0 0 12px ${C.goldGlow}`:"none"}}>
-            {isAuth?"🔓 DM":"🔐 DM"}
-          </button>
-          {TABLE_MAP[view]||view==="npc"?<button onClick={openAdd} style={{fontSize:12,fontWeight:600,padding:"6px 14px",borderRadius:8,background:C.gold,color:"#0b1120",border:"none",cursor:"pointer"}}>+ Aggiungi</button>:null}
-        </div>
+        {(TABLE_MAP[view]||view==="npc")&&<button onClick={openAdd} style={{fontSize:12,fontWeight:600,padding:"6px 14px",borderRadius:8,background:C.gold,color:"#0b1120",border:"none",cursor:"pointer"}}>+ Aggiungi</button>}
       </div>
       <div style={{flex:1,overflowY:"auto",padding:20}}>{renderContent()}</div>
     </div>
-
     <NpcPanel npc={npcOpen} onClose={()=>setNpcOpen(null)}/>
+    {npcModal&&<NpcFormModal npc={npcModal?.id?npcModal:null} onClose={()=>setNpcModal(null)} onSaved={()=>{setNpcModal(null);loadAll();}}/>}
+    {genericModal&&<GenericModal
+      title={genericModal.item?"Modifica":"Aggiungi"}
+      fields={TABLE_MAP[genericModal.view]?.fields||[]}
+      vals={genericVals}
+      onClose={()=>setGenericModal(null)}
+      onSave={saveGeneric}
+      saving={saving}
+      onChange={(id,val)=>setGenericVals(v=>({...v,[id]:val}))}
+      hasImage={TABLE_MAP[genericModal.view]?.hasImage||false}
+      imageBucket={TABLE_MAP[genericModal.view]?.imageBucket||""}
+      imageField={TABLE_MAP[genericModal.view]?.imageField||"image_path"}
+    />}
     {pinModal?.view==="pin_detail"&&pinModal.item&&<div onClick={()=>setPinModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.8)",zIndex:300,display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(4px)"}}>
       <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:"20px 20px 0 0",width:"100%",maxWidth:640,padding:"20px 20px 32px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
@@ -779,10 +768,8 @@ export default function App(){
         {[{id:"name",l:"Nome",ph:"Es. Città di Arenmar"},{id:"description",l:"Descrizione",ph:"...",ta:true}].map(f=>(
           <div key={f.id} style={{marginBottom:12}}>
             <label style={{display:"block",fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim}}>{f.l}</label>
-            {f.ta
-              ?<textarea value={pinVals[f.id]||""} onChange={e=>setPinVals(v=>({...v,[f.id]:e.target.value}))} placeholder={f.ph} style={{width:"100%",background:C.bg,border:`1px solid ${C.border2}`,borderRadius:8,color:C.text,fontFamily:"inherit",fontSize:14,padding:"8px 12px",outline:"none",marginTop:4,minHeight:80,resize:"vertical",boxSizing:"border-box"}}/>
-              :<input value={pinVals[f.id]||""} onChange={e=>setPinVals(v=>({...v,[f.id]:e.target.value}))} placeholder={f.ph} style={{width:"100%",background:C.bg,border:`1px solid ${C.border2}`,borderRadius:8,color:C.text,fontFamily:"inherit",fontSize:14,padding:"8px 12px",outline:"none",marginTop:4,boxSizing:"border-box"}}/>
-            }
+            {f.ta?<textarea value={pinVals[f.id]||""} onChange={e=>setPinVals(v=>({...v,[f.id]:e.target.value}))} placeholder={f.ph} style={{width:"100%",background:C.bg,border:`1px solid ${C.border2}`,borderRadius:8,color:C.text,fontFamily:"inherit",fontSize:14,padding:"8px 12px",outline:"none",marginTop:4,minHeight:80,resize:"vertical",boxSizing:"border-box"}}/>
+              :<input value={pinVals[f.id]||""} onChange={e=>setPinVals(v=>({...v,[f.id]:e.target.value}))} placeholder={f.ph} style={{width:"100%",background:C.bg,border:`1px solid ${C.border2}`,borderRadius:8,color:C.text,fontFamily:"inherit",fontSize:14,padding:"8px 12px",outline:"none",marginTop:4,boxSizing:"border-box"}}/>}
           </div>
         ))}
         <div style={{marginBottom:16}}>
@@ -802,19 +789,5 @@ export default function App(){
         </div>
       </div>
     </div>}
-    {showPin&&<PinModal onSuccess={()=>{ setIsAuth(true); setShowPin(false); try{localStorage.setItem("dm_auth","true");}catch(e){} }} onClose={()=>setShowPin(false)}/>}
-    {npcModal&&<NpcFormModal npc={npcModal?.id?npcModal:null} onClose={()=>setNpcModal(null)} onSaved={()=>{setNpcModal(null);loadAll();}}/>}
-    {genericModal&&<GenericModal
-      title={genericModal.item?"Modifica":"Aggiungi"}
-      fields={TABLE_MAP[genericModal.view]?.fields||[]}
-      vals={genericVals}
-      onClose={()=>setGenericModal(null)}
-      onSave={saveGeneric}
-      saving={saving}
-      onChange={(id,val)=>setGenericVals(v=>({...v,[id]:val}))}
-      hasImage={TABLE_MAP[genericModal.view]?.hasImage||false}
-      imageBucket={TABLE_MAP[genericModal.view]?.imageBucket||""}
-      imageField={TABLE_MAP[genericModal.view]?.imageField||"image_path"}
-    />}
   </div>;
 }
