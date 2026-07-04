@@ -408,7 +408,6 @@ const TABLE_MAP = {
   fazioni:{table:"factions",fields:[{id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"⚔️"},{id:"description",l:"Descrizione",ph:"...",ta:true},{id:"influence",l:"Influenza %",ph:"0-100"}]},
   mondo:{table:"locations",fields:[{id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"🏰"},{id:"sub",l:"Descrizione",ph:"...",ta:true}]},
   cronologia:{table:"timeline",fields:[{id:"date",l:"Data",ph:"Anno 1, Giorno X"},{id:"title",l:"Titolo",ph:"Evento..."},{id:"description",l:"Descrizione",ph:"Cosa accadde...",ta:true}],hasImage:true,imageBucket:"timeline-images",imageField:"image_path"},
-  tomo:{table:"tome",fields:[{id:"title",l:"Titolo",ph:"Segreto..."},{id:"text",l:"Contenuto",ph:"...",ta:true},{id:"locked",l:"Bloccato?",sel:["false","true"]}]},
 };
 
 export default function App(){
@@ -418,7 +417,7 @@ export default function App(){
       return s?JSON.parse(s):null;
     }catch(e){return null;}
   });
-  const [data,setData]=useState({sessioni:[],npc:[],gilda:[],fazioni:[],mondo:[],cronologia:[],tomo:[],map_pins:[],map_config:null});
+  const [data,setData]=useState({sessioni:[],npc:[],gilda:[],fazioni:[],mondo:[],cronologia:[],map_pins:[],map_config:null});
   const [loading,setLoading]=useState(true);
   const [view,setView]=useState("sessioni");
   const [sidebarOpen,setSidebarOpen]=useState(false);
@@ -433,7 +432,7 @@ export default function App(){
   const [pendingPin,setPendingPin]=useState(false);
 
   const isAuth = user?.role==="dm";
-  const TITLES={sessioni:"Sessioni",npc:"NPC",mappa:"Mappa",gilda:"Gilda",fazioni:"Fazioni",mondo:"Fogli del Mondo",cronologia:"Cronologia",tomo:"Tomo Segreto"};
+  const TITLES={sessioni:"Sessioni",npc:"NPC",mappa:"Mappa",gilda:"Gilda",fazioni:"Fazioni",mondo:"Fogli del Mondo",cronologia:"Cronologia"};
 
   const handleLogin = (u) => {
     setUser(u);
@@ -448,20 +447,18 @@ export default function App(){
   const loadAll=async()=>{
     setLoading(true);
     try{
-      const [npcs,sessions,factions,locations,timeline,tome,map_pins,map_config]=await Promise.all([
+      const [npcs,sessions,factions,locations,timeline,map_pins,map_config]=await Promise.all([
         supabase.from("npcs").select("*").order("created_at",{ascending:false}),
         supabase.from("sessions").select("*").order("created_at",{ascending:false}),
         supabase.from("factions").select("*").order("created_at",{ascending:false}),
         supabase.from("locations").select("*").order("created_at",{ascending:false}),
         supabase.from("timeline").select("*").order("created_at",{ascending:false}),
-        supabase.from("tome").select("*").order("created_at",{ascending:false}),
         supabase.from("map_pins").select("*").order("created_at",{ascending:false}),
         supabase.from("map_config").select("*").limit(1),
       ]);
       setData(d=>({...d,
         npc:npcs.data||[],sessioni:sessions.data||[],gilda:factions.data||[],
-        fazioni:factions.data||[],mondo:locations.data||[],cronologia:timeline.data||[],
-        tomo:tome.data||[],map_pins:map_pins.data||[],map_config:map_config.data?.[0]||null,
+        fazioni:factions.data||[],mondo:locations.data||[],cronologia:timeline.data||[],map_pins:map_pins.data||[],map_config:map_config.data?.[0]||null,
       }));
     }catch(e){console.error(e);}
     setLoading(false);
@@ -617,20 +614,7 @@ export default function App(){
           ))}
         </div>;
 
-      case "tomo":return <div>
-        <div style={{textAlign:"center",padding:"16px 0 24px"}}>
-          <div style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.gold,textShadow:`0 0 24px ${C.goldGlow}`}}>Tomo Segreto</div>
-          <div style={{fontSize:10,fontWeight:600,letterSpacing:".2em",textTransform:"uppercase",color:C.textMuted,marginTop:4}}>Solo DM</div>
-        </div>
-        {!data.tomo.length?<EmptyState msg="Nessun segreto ancora"/>:data.tomo.map((t,i)=>(
-          <div key={t.id||i} style={{background:C.bg2,border:`1px solid ${C.border}`,borderLeft:`3px solid ${C.goldDim}`,borderRadius:12,padding:"14px 16px",marginBottom:10}}>
-            <div style={{fontFamily:"'Cinzel',serif",fontSize:13,fontWeight:600,color:C.text,marginBottom:7}}>{t.title}</div>
-            {t.locked?<><div style={{fontSize:13,color:C.textDim,fontStyle:"italic"}}>[SIGILLATO]</div><span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:600,letterSpacing:".1em",textTransform:"uppercase",color:C.goldDim,border:`1px solid ${C.goldDim}`,borderRadius:5,padding:"2px 8px",marginTop:7}}>🔒 Bloccato</span></>
-              :<div style={{fontSize:13,color:C.textDim,fontStyle:"italic",lineHeight:1.65}}>{t.text}</div>}
-            <EditBtns v="tomo" item={t}/>
-          </div>
-        ))}
-      </div>;
+
 
       case "mappa":{
         const mapImg=data.map_config?.map_path;
@@ -712,13 +696,7 @@ export default function App(){
           </div>
         ))}
       </div>
-      <div style={{height:1,background:C.border,margin:"6px 18px"}}/>
-      <div style={{padding:"14px 0 6px"}}>
-        <div style={{fontSize:10,fontWeight:600,letterSpacing:".18em",textTransform:"uppercase",color:C.goldDim,padding:"0 18px 6px"}}>Segreti</div>
-        <div onClick={()=>nav("tomo")} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 18px",cursor:"pointer",fontSize:13,color:view==="tomo"?C.gold:C.textDim,background:view==="tomo"?`rgba(212,160,23,.08)`:"transparent",borderLeft:`2px solid ${view==="tomo"?C.gold:"transparent"}`}}>
-          <span style={{fontSize:14,width:18,textAlign:"center"}}>🔒</span>Tomo Segreto
-        </div>
-      </div>
+
       <div style={{marginTop:"auto",padding:"14px 18px",borderTop:`1px solid ${C.border}`}}>
         <Btn onClick={handleLogout} style={{width:"100%"}}>Esci</Btn>
       </div>
