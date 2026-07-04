@@ -1140,7 +1140,7 @@ export default function App(){
   const loadAll=async()=>{
     setLoading(true);
     try{
-      const [npcs,sessions,factions,locations,timeline,map_pins,map_config]=await Promise.all([
+      const [npcs,sessions,factions,locations,timeline,map_pins,map_config,playersRes]=await Promise.all([
         supabase.from("npcs").select("*").order("created_at",{ascending:false}),
         supabase.from("sessions").select("*").order("created_at",{ascending:false}),
         supabase.from("factions").select("*").order("created_at",{ascending:false}),
@@ -1148,7 +1148,17 @@ export default function App(){
         supabase.from("timeline").select("*").order("created_at",{ascending:false}),
         supabase.from("map_pins").select("*").order("created_at",{ascending:false}),
         supabase.from("map_config").select("*").limit(1),
+        supabase.from("player_characters").select("*").order("name"),
       ]);
+      const parsed=(playersRes.data||[]).map(p=>{
+        if(typeof p.attacks==="string")try{p.attacks=JSON.parse(p.attacks);}catch(e){p.attacks=[];}
+        if(!Array.isArray(p.attacks))p.attacks=[];
+        if(typeof p.spell_slots==="string")try{p.spell_slots=JSON.parse(p.spell_slots);}catch(e){p.spell_slots={};}
+        if(typeof p.coins==="string")try{p.coins=JSON.parse(p.coins);}catch(e){p.coins={};}
+        if(typeof p.potions==="string")try{p.potions=JSON.parse(p.potions);}catch(e){p.potions={};}
+        return p;
+      });
+      setPlayers(parsed);
       setData(d=>({...d,
         npc:npcs.data||[],sessioni:sessions.data||[],gilda:factions.data||[],
         fazioni:factions.data||[],mondo:locations.data||[],cronologia:timeline.data||[],map_pins:map_pins.data||[],map_config:map_config.data?.[0]||null,
