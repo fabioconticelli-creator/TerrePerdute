@@ -716,8 +716,6 @@ function PlayerView({user, onLogout}){
   );
 }
 
-}
-
 // ── DM PLAYER VIEW ──
 function DmPlayerView({player, onUpdate}){
   const [char, setChar] = useState(player);
