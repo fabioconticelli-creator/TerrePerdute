@@ -403,6 +403,8 @@ function PlayerView({user, onLogout}){
           ))}
         </div>;
       case "bastioni": return <BastioniView isAuth={false} onUpdate={()=>{}}/>;
+      case "mappa":{
+        const mapImg=campData.map_config?.map_path;
         return <div>
           <div style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden",marginBottom:12}}>
             {mapImg?<div style={{position:"relative"}}>
