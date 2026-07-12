@@ -1613,6 +1613,26 @@ function BastioniView({isAuth, onUpdate}){
 }
 
 
+
+function usePullToRefresh(onRefresh){
+  useEffect(()=>{
+    let startY=0, pulling=false;
+    const onTouchStart=e=>{ startY=e.touches[0].clientY; pulling=true; };
+    const onTouchEnd=e=>{
+      if(!pulling)return;
+      const dy=e.changedTouches[0].clientY-startY;
+      if(dy>80 && window.scrollY===0){ onRefresh(); }
+      pulling=false;
+    };
+    document.addEventListener("touchstart",onTouchStart,{passive:true});
+    document.addEventListener("touchend",onTouchEnd,{passive:true});
+    return()=>{
+      document.removeEventListener("touchstart",onTouchStart);
+      document.removeEventListener("touchend",onTouchEnd);
+    };
+  },[onRefresh]);
+}
+
 export default function App(){
   const [user,setUser]=useState(()=>{
     try{
@@ -1742,6 +1762,7 @@ export default function App(){
     await supabase.from(cfg.table).delete().eq("id",id);loadAll();
   };
 
+  usePullToRefresh(loadAll);
   const openAdd=()=>{if(view==="npc")openNpcAdd();else if(TABLE_MAP[view])openGenericAdd();};
 
   const EditBtns=({v,item})=>isAuth?<div style={{display:"flex",gap:6,marginTop:10,paddingTop:9,borderTop:`1px solid ${C.border}`}}>
