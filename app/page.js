@@ -315,12 +315,14 @@ function PlayerView({user, onLogout}){
   const navItems=[
     {v:"scheda",icon:"🛡️",label:"La mia Scheda"},
     {v:"sessioni",icon:"📜",label:"Sessioni"},
-    {v:"cronologia",icon:"⏳",label:"Cronologia"},
     {v:"gilda",icon:"🏴",label:"Gilda"},
-    {v:"fazioni",icon:"⚔️",label:"Fazioni"},
     {v:"npc",icon:"👤",label:"NPC"},
-    {v:"mondo",icon:"🌍",label:"Fogli del Mondo"},
     {v:"mappa",icon:"🗺️",label:"Mappa"},
+    {v:"fazioni",icon:"⚔️",label:"Fazioni"},
+    {v:"mondo",icon:"🌍",label:"Fogli del Mondo"},
+    {v:"cronologia",icon:"⏳",label:"Cronologia"},
+  ];
+  const partyNavItems=[
     {v:"bastioni",icon:"⚓",label:"Bastioni"},
   ];
 
@@ -578,6 +580,15 @@ function PlayerView({user, onLogout}){
         </div>
         <div style={{padding:"14px 0 6px"}}>
           {navItems.map(({v,icon,label})=>(
+            <div key={v} onClick={()=>{setView(v);setSidebarOpen(false);load();}} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 18px",cursor:"pointer",fontSize:13,fontWeight:view===v?500:400,color:view===v?C.gold:C.textDim,background:view===v?`rgba(212,160,23,.08)`:"transparent",borderLeft:`2px solid ${view===v?C.gold:"transparent"}`,userSelect:"none"}}>
+              <span style={{fontSize:14,width:18,textAlign:"center"}}>{icon}</span>{label}
+            </div>
+          ))}
+        </div>
+        <div style={{height:1,background:C.border,margin:"6px 18px"}}/>
+        <div style={{padding:"14px 0 6px"}}>
+          <div style={{fontSize:10,fontWeight:600,letterSpacing:".18em",textTransform:"uppercase",color:C.textMuted,padding:"0 18px 6px"}}>Party</div>
+          {partyNavItems.map(({v,icon,label})=>(
             <div key={v} onClick={()=>{setView(v);setSidebarOpen(false);load();}} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 18px",cursor:"pointer",fontSize:13,fontWeight:view===v?500:400,color:view===v?C.gold:C.textDim,background:view===v?`rgba(212,160,23,.08)`:"transparent",borderLeft:`2px solid ${view===v?C.gold:"transparent"}`,userSelect:"none"}}>
               <span style={{fontSize:14,width:18,textAlign:"center"}}>{icon}</span>{label}
             </div>
