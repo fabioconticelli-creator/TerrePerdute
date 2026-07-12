@@ -4,7 +4,9 @@ import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = "https://nrnikfajuzilnglvyezm.supabase.co";
 const SUPABASE_KEY = "sb_publishable_AtRqw50X9ATc76oJdK1Y6g_zz93ugbc";
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  global: { headers: { 'Cache-Control': 'no-cache, no-store' } }
+});
 
 const DM_PIN = "1234";
 
@@ -1701,7 +1703,7 @@ export default function App(){
   },[]);
 
   useEffect(()=>{
-    if(user?.role==="dm"){ loadAll(); }
+    if(user?.role==="dm"){ loadAll(); const i=setInterval(loadAll,60000); return()=>clearInterval(i); }
   },[user]);
 
   if(!authChecked && !user) return <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",color:C.textDim,fontSize:14}}>Caricamento...</div>;
