@@ -1941,11 +1941,10 @@ export default function App(){
   };
 
   const navItems=[
-    {v:"sessioni",icon:"📜",label:"Sessioni"},{v:"cronologia",icon:"⏳",label:"Cronologia"},
-    {v:"gilda",icon:"🏴",label:"Gilda"},{v:"fazioni",icon:"⚔️",label:"Fazioni"},
-    {v:"npc",icon:"👤",label:"NPC"},{v:"mondo",icon:"🌍",label:"Fogli del Mondo"},
-    {v:"mappa",icon:"🗺️",label:"Mappa"},
-    {v:"bastioni",icon:"⚓",label:"Bastioni"},
+    {v:"sessioni",icon:"📜",label:"Sessioni"},{v:"gilda",icon:"🏴",label:"Gilda"},
+    {v:"npc",icon:"👤",label:"NPC"},{v:"mappa",icon:"🗺️",label:"Mappa"},
+    {v:"fazioni",icon:"⚔️",label:"Fazioni"},{v:"mondo",icon:"🌍",label:"Fogli del Mondo"},
+    {v:"cronologia",icon:"⏳",label:"Cronologia"},
   ];
 
   return <div style={{display:"flex",height:"100vh",overflow:"hidden",background:C.bg,color:C.text,fontFamily:"'Inter',sans-serif"}}>
@@ -1969,6 +1968,13 @@ export default function App(){
         ))}
       </div>
 
+      <div style={{height:1,background:C.border,margin:"6px 18px"}}/>
+      <div style={{padding:"14px 0 6px"}}>
+        <div style={{fontSize:10,fontWeight:600,letterSpacing:".18em",textTransform:"uppercase",color:C.textMuted,padding:"0 18px 6px"}}>Party</div>
+        <div onClick={()=>nav("bastioni")} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 18px",cursor:"pointer",fontSize:13,color:view==="bastioni"?C.gold:C.textDim,background:view==="bastioni"?`rgba(212,160,23,.08)`:"transparent",borderLeft:`2px solid ${view==="bastioni"?C.gold:"transparent"}`}}>
+          <span style={{fontSize:14,width:18,textAlign:"center"}}>⚓</span>Bastioni
+        </div>
+      </div>
       {players.length>0&&<>
         <div style={{height:1,background:C.border,margin:"6px 18px"}}/>
         <div style={{padding:"14px 0 6px"}}>
