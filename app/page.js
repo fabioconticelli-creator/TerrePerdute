@@ -1620,6 +1620,7 @@ export default function App(){
       return s?JSON.parse(s):null;
     }catch(e){return null;}
   });
+  const [authChecked,setAuthChecked]=useState(false);
   const [data,setData]=useState({sessioni:[],npc:[],gilda:[],fazioni:[],mondo:[],cronologia:[],map_pins:[],map_config:null});
   const [loading,setLoading]=useState(true);
   const [view,setView]=useState("sessioni");
@@ -1679,10 +1680,28 @@ export default function App(){
     setLoading(false);
   };
 
+  // Restore Supabase session on page load
+  useEffect(()=>{
+    const restoreSession = async () => {
+      const {data:{session}} = await supabase.auth.getSession();
+      if(session && !user){
+        const {data:profile} = await supabase.from("profiles").select("*").eq("id",session.user.id).single();
+        if(profile && profile.role==="player"){
+          const restored = {role:"player", name:profile.character_name, email:session.user.email, userId:session.user.id, profile};
+          setUser(restored);
+          try{localStorage.setItem("tp_user",JSON.stringify(restored));}catch(e){}
+        }
+      }
+      setAuthChecked(true);
+    };
+    restoreSession();
+  },[]);
+
   useEffect(()=>{
     if(user?.role==="dm"){ loadAll(); }
   },[user]);
 
+  if(!authChecked && !user) return <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",color:C.textDim,fontSize:14}}>Caricamento...</div>;
   if(!user) return <LoginScreen onLogin={handleLogin}/>;
   if(user.role==="player") return <PlayerView user={user} onLogout={handleLogout}/>;
 
