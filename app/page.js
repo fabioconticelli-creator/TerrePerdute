@@ -1200,7 +1200,7 @@ function DmPlayerView({player, onUpdate}){
 
 
 const TABLE_MAP = {
-  sessioni:{table:"sessions",fields:[{id:"num",l:"Numero",ph:"es. I"},{id:"title",l:"Titolo",ph:"Titolo..."},{id:"date",l:"Data",ph:"es. 1 Gen 2025"},{id:"excerpt",l:"Riassunto",ph:"Cosa è successo...",ta:true}]},
+  sessioni:{table:"sessions",fields:[{id:"num",l:"Numero",ph:"es. I"},{id:"title",l:"Titolo",ph:"Titolo..."},{id:"date",l:"Data",type:"date"},{id:"excerpt",l:"Riassunto",ph:"Cosa è successo...",ta:true}]},
   gilda:{table:"factions",fields:[{id:"name",l:"Nome",ph:"Nome"},{id:"grado",l:"Grado",sel:["Ferro","Argento","Oro","Platino","Adamantio"]},{id:"description",l:"Descrizione",ph:"...",ta:true},{id:"sede",l:"Sede",ph:"es. Porto di Arenmar"},{id:"influence",l:"Fama %",ph:"0-100"}],tipo:"gilda",hasImage:true,imageBucket:"npc-images",imageField:"img_url"},
   fazioni:{table:"factions",fields:[{id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"⚔️"},{id:"description",l:"Descrizione",ph:"...",ta:true},{id:"influence",l:"Influenza %",ph:"0-100"}],tipo:"fazione"},
   mondo:{table:"locations",fields:[{id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"🏰"},{id:"sub",l:"Descrizione",ph:"...",ta:true}]},
@@ -1355,7 +1355,7 @@ function GenericModal({title,fields,vals,onClose,onSave,saving,onChange,hasImage
             {f.sel.map(o=><option key={o} value={o} style={{background:C.bg2}}>{o||"—"}</option>)}
           </select>
           :f.ta?<textarea value={vals[f.id]||""} onChange={e=>onChange(f.id,e.target.value)} placeholder={f.ph} style={{...inp,minHeight:80,resize:"vertical"}}/>
-          :<input value={vals[f.id]||""} onChange={e=>onChange(f.id,e.target.value)} placeholder={f.ph} style={inp}/>}
+          :<input type={f.type||"text"} value={vals[f.id]||""} onChange={e=>onChange(f.id,e.target.value)} placeholder={f.ph||""} style={inp}/>}
       </div>
     ))}
   </Modal>;
