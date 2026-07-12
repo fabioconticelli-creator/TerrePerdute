@@ -363,6 +363,7 @@ function PlayerView({user, onLogout}){
             {g.description&&<div style={{fontSize:13,color:C.textDim,fontStyle:"italic",lineHeight:1.55}}>{g.description}</div>}
           </div>
         ))}</div>;
+      }
       case "fazioni": return !campData.fazioni.length?<EmptyState msg="Nessuna fazione ancora"/>:
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {campData.fazioni.map((f,i)=>(
@@ -1188,7 +1189,7 @@ function DmPlayerView({player, onUpdate}){
 
 const TABLE_MAP = {
   sessioni:{table:"sessions",fields:[{id:"num",l:"Numero",ph:"es. I"},{id:"title",l:"Titolo",ph:"Titolo..."},{id:"date",l:"Data",ph:"es. 1 Gen 2025"},{id:"excerpt",l:"Riassunto",ph:"Cosa è successo...",ta:true}]},
-  gilda:{table:"factions",fields:[{id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"🏴"},{id:"rank",l:"Rango",ph:"es. Fondatori"},{id:"description",l:"Descrizione",ph:"...",ta:true},{id:"sede",l:"Sede",ph:"es. Porto di Arenmar"},{id:"influence",l:"Potere %",ph:"0-100"}],tipo:"gilda",hasImage:true,imageBucket:"npc-images",imageField:"img_url"},
+  gilda:{table:"factions",fields:[{id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"🏴"},{id:"grado",l:"Grado",sel:["Ferro","Argento","Oro","Platino","Adamantio"]},{id:"rank",l:"Rango",ph:"es. Fondatori"},{id:"description",l:"Descrizione",ph:"...",ta:true},{id:"sede",l:"Sede",ph:"es. Porto di Arenmar"},{id:"influence",l:"Potere %",ph:"0-100"}],tipo:"gilda",hasImage:true,imageBucket:"npc-images",imageField:"img_url"},
   fazioni:{table:"factions",fields:[{id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"⚔️"},{id:"description",l:"Descrizione",ph:"...",ta:true},{id:"influence",l:"Influenza %",ph:"0-100"}],tipo:"fazione"},
   mondo:{table:"locations",fields:[{id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"🏰"},{id:"sub",l:"Descrizione",ph:"...",ta:true}]},
   cronologia:{table:"timeline",fields:[{id:"date",l:"Data",ph:"Anno 1, Giorno X"},{id:"title",l:"Titolo",ph:"Evento..."},{id:"description",l:"Descrizione",ph:"Cosa accadde...",ta:true}],hasImage:true,imageBucket:"timeline-images",imageField:"image_path"},
@@ -1766,19 +1767,26 @@ export default function App(){
           ))}
         </div>;
 
-      case "gilda":return <div>
+      case "gilda":{
+        const gradoOrder={"Adamantio":5,"Platino":4,"Oro":3,"Argento":2,"Ferro":1};
+        const gradoColor={"Adamantio":"#b9f2ff","Platino":"#e5e4e2","Oro":C.gold,"Argento":"#c0c0c0","Ferro":"#a0522d"};
+        const sortedGilda=[...data.gilda].sort((a,b)=>(gradoOrder[b.grado]||0)-(gradoOrder[a.grado]||0));
+        return <div>
         <div style={{textAlign:"center",padding:"16px 0 24px"}}>
           <div style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.gold,textShadow:`0 0 24px ${C.goldGlow}`}}>La Gilda</div>
           <div style={{fontSize:10,fontWeight:600,letterSpacing:".2em",textTransform:"uppercase",color:C.textMuted,marginTop:4}}>Fratellanza & Alleanze</div>
         </div>
-        {!data.gilda.length?<EmptyState msg="Nessun membro della gilda ancora"/>:data.gilda.map((g,i)=>(
+        {!data.gilda.length?<EmptyState msg="Nessun membro della gilda ancora"/>:sortedGilda.map((g,i)=>(
           <div key={g.id||i} style={{background:C.bg2,border:`1px solid ${C.border}`,borderLeft:`3px solid ${C.gold}`,borderRadius:12,overflow:"hidden",marginBottom:10}}>
             {g.img_url&&<img src={g.img_url} alt={g.name} style={{width:"100%",maxHeight:180,objectFit:"cover",display:"block"}}/>}
             <div style={{padding:"14px 16px"}}>
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
               <div style={{width:44,height:44,background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{g.icon||"🏴"}</div>
               <div style={{flex:1}}>
-                <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{g.name}</div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{g.name}</div>
+                  {g.grado&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:5,background:"rgba(0,0,0,.4)",color:gradoColor[g.grado]||C.textDim,border:`1px solid ${gradoColor[g.grado]||C.border2}`}}>{g.grado}</span>}
+                </div>
                 {g.rank&&<div style={{fontSize:10,fontWeight:600,letterSpacing:".15em",textTransform:"uppercase",color:C.gold,marginTop:2}}>{g.rank}</div>}
               </div>
             </div>
@@ -1786,10 +1794,11 @@ export default function App(){
             {g.description&&<div style={{fontSize:13,color:C.textDim,fontStyle:"italic",lineHeight:1.55,marginBottom:8}}>{g.description}</div>}
             {g.influence!=null&&<><div style={{height:3,background:C.bg3,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${g.influence||0}%`,background:`linear-gradient(90deg,${C.goldDim},${C.gold})`}}/></div><div style={{fontSize:10,color:C.textMuted,marginTop:3}}>Potere: {g.influence||0}%</div></>}
             <EditBtns v="gilda" item={g}/>
+            </div>
           </div>
         ))}
-      </div>;
-
+        </div>;
+      }
       case "fazioni":return !data.fazioni.length?<EmptyState msg="Nessuna fazione ancora"/>:
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {data.fazioni.map((f,i)=>(
