@@ -1680,7 +1680,7 @@ export default function App(){
   };
 
   useEffect(()=>{
-    if(user?.role==="dm"){ loadAll(); const i=setInterval(loadAll,30000); return()=>clearInterval(i); }
+    if(user?.role==="dm"){ loadAll(); }
   },[user]);
 
   if(!user) return <LoginScreen onLogin={handleLogin}/>;
