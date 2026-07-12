@@ -1101,6 +1101,160 @@ const TABLE_MAP = {
   cronologia:{table:"timeline",fields:[{id:"date",l:"Data",ph:"Anno 1, Giorno X"},{id:"title",l:"Titolo",ph:"Evento..."},{id:"description",l:"Descrizione",ph:"Cosa accadde...",ta:true}],hasImage:true,imageBucket:"timeline-images",imageField:"image_path"},
 };
 
+
+function Modal({title,onClose,onSave,saving,children}){
+  return <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.88)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
+    <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,maxWidth:500,width:"92%",maxHeight:"88vh",overflowY:"auto",boxShadow:`0 0 40px ${C.goldGlow}`}}>
+      <div style={{padding:"18px 20px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <span style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.gold}}>{title}</span>
+        <button onClick={onClose} style={{background:"none",border:"none",fontSize:20,color:C.textDim,cursor:"pointer"}}>✕</button>
+      </div>
+      <div style={{padding:"18px 20px"}}>{children}</div>
+      <div style={{padding:"12px 20px 18px",display:"flex",gap:8,justifyContent:"flex-end",borderTop:`1px solid ${C.border}`}}>
+        <Btn onClick={onClose}>Annulla</Btn>
+        <Btn onClick={onSave} primary disabled={saving}>{saving?"Salvataggio...":"Salva"}</Btn>
+      </div>
+    </div>
+  </div>;
+}
+
+function PinModal({onSuccess,onClose}){
+  const [val,setVal]=useState("");
+  const [err,setErr]=useState("");
+  const press=d=>{
+    if(val.length>=4)return;
+    const next=val+d;
+    setVal(next);
+    if(next.length===4){setTimeout(()=>{if(next==="1234"){onSuccess();}else{setErr("PIN errato");setVal("");}},80);}
+  };
+  return <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.88)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
+    <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,width:280,padding:"20px 20px 16px",boxShadow:`0 0 32px ${C.goldGlow}`}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <span style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.gold}}>🔐 PIN Dungeon Master</span>
+        <button onClick={onClose} style={{background:"none",border:"none",fontSize:20,color:C.textDim,cursor:"pointer"}}>✕</button>
+      </div>
+      <div style={{display:"flex",gap:12,justifyContent:"center",margin:"0 0 16px"}}>
+        {[0,1,2,3].map(i=><div key={i} style={{width:14,height:14,borderRadius:"50%",border:`2px solid ${i<val.length?C.gold:C.border2}`,background:i<val.length?C.gold:"transparent",transition:"all .15s"}}/>)}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,maxWidth:210,margin:"0 auto"}}>
+        {["1","2","3","4","5","6","7","8","9","CLR","0","⌫"].map(k=>(
+          <button key={k} onClick={()=>k==="CLR"?setVal(""):k==="⌫"?setVal(v=>v.slice(0,-1)):press(k)}
+            style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,color:C.text,fontSize:k.length>1?11:18,fontWeight:500,padding:"13px 0",cursor:"pointer"}}>{k}</button>
+        ))}
+      </div>
+      <div style={{textAlign:"center",fontSize:11,fontWeight:600,color:"#f87171",marginTop:8,minHeight:16}}>{err}</div>
+    </div>
+  </div>;
+}
+
+function NpcFormModal({npc,onClose,onSaved}){
+  const [vals,setVals]=useState(npc||{name:"",role:"",icon:"👤",description:"",primo_incontro:"",attitude:"Neutrale",stato:"vivo",img_url:""});
+  const [imgFile,setImgFile]=useState(null);
+  const [imgPreview,setImgPreview]=useState(npc?.img_url||"");
+  const [saving,setSaving]=useState(false);
+  const handleFile=e=>{const f=e.target.files[0];if(!f)return;setImgFile(f);setImgPreview(URL.createObjectURL(f));};
+  const save=async()=>{
+    setSaving(true);
+    try{
+      let imgUrl=vals.img_url||"";
+      if(imgFile){
+        const ext=imgFile.name.split(".").pop();
+        const path=`${Date.now()}.${ext}`;
+        const {error:upErr}=await supabase.storage.from("npc-images").upload(path,imgFile,{upsert:true});
+        if(upErr)throw upErr;
+        const {data:urlData}=supabase.storage.from("npc-images").getPublicUrl(path);
+        imgUrl=urlData.publicUrl;
+      }
+      const payload={...vals,img_url:imgUrl};
+      delete payload.id; delete payload.created_at;
+      let error;
+      if(npc?.id){({error}=await supabase.from("npcs").update(payload).eq("id",npc.id));}
+      else{({error}=await supabase.from("npcs").insert(payload));}
+      if(error)throw error;
+      onSaved();
+    }catch(e){alert("Errore: "+e.message);}
+    setSaving(false);
+  };
+  const inp={width:"100%",background:C.bg,border:`1px solid ${C.border2}`,borderRadius:8,color:C.text,fontFamily:"inherit",fontSize:14,padding:"8px 12px",outline:"none",marginTop:4,boxSizing:"border-box"};
+  const lbl={display:"block",fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim};
+  return <Modal title={npc?.id?"Modifica NPC":"Nuovo NPC"} onClose={onClose} onSave={save} saving={saving}>
+    <div style={{marginBottom:13}}>
+      <label style={lbl}>Immagine</label>
+      <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:8,alignItems:"center"}}>
+        {imgPreview?<img src={imgPreview} style={{width:"100%",height:300,objectFit:"cover",objectPosition:"center top",borderRadius:10,border:`1px solid ${C.border2}`}}/>
+          :<div style={{width:"100%",height:120,background:C.bg3,borderRadius:10,border:`2px dashed ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32}}>{vals.icon||"👤"}</div>}
+        <label style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:"8px 16px",cursor:"pointer",fontSize:12,color:C.textDim,textAlign:"center",width:"100%",boxSizing:"border-box"}}>
+          📷 Scegli foto dal telefono
+          <input type="file" accept="image/*" onChange={handleFile} style={{display:"none"}}/>
+        </label>
+        {imgPreview&&<button onClick={()=>{setImgFile(null);setImgPreview("");setVals(v=>({...v,img_url:""}));}} style={{fontSize:11,color:"#f87171",background:"none",border:"none",cursor:"pointer"}}>✕ Rimuovi immagine</button>}
+      </div>
+    </div>
+    {[{id:"name",l:"Nome",ph:"Nome"},{id:"role",l:"Ruolo",ph:"es. Mercante"},{id:"icon",l:"Icona",ph:"👤"},{id:"primo_incontro",l:"Primo incontro",ph:"es. Aldermoor"}].map(f=>(
+      <div key={f.id} style={{marginBottom:13}}>
+        <label style={lbl}>{f.l}</label>
+        <input value={vals[f.id]||""} onChange={e=>setVals(v=>({...v,[f.id]:e.target.value}))} placeholder={f.ph} style={inp}/>
+      </div>
+    ))}
+    <div style={{marginBottom:13}}>
+      <label style={lbl}>Descrizione</label>
+      <textarea value={vals.description||""} onChange={e=>setVals(v=>({...v,description:e.target.value}))} placeholder="Chi è?" style={{...inp,minHeight:80,resize:"vertical"}}/>
+    </div>
+    <div style={{marginBottom:13}}>
+      <label style={lbl}>Relazione</label>
+      <select value={vals.attitude||"Neutrale"} onChange={e=>setVals(v=>({...v,attitude:e.target.value}))} style={{...inp,cursor:"pointer"}}>
+        {["Neutrale","Alleato","Nemico","Sconosciuto"].map(o=><option key={o} value={o} style={{background:C.bg2}}>{o}</option>)}
+      </select>
+    </div>
+    <div style={{marginBottom:13}}>
+      <label style={lbl}>Stato</label>
+      <select value={vals.stato||""} onChange={e=>setVals(v=>({...v,stato:e.target.value}))} style={{...inp,cursor:"pointer"}}>
+        {["vivo","morto",""].map(o=><option key={o} value={o} style={{background:C.bg2}}>{o||"—"}</option>)}
+      </select>
+    </div>
+  </Modal>;
+}
+
+function GenericModal({title,fields,vals,onClose,onSave,saving,onChange,hasImage,imageBucket,imageField}){
+  const [imgFile,setImgFile]=useState(null);
+  const [imgPreview,setImgPreview]=useState(vals[imageField||"image_path"]||"");
+  const inp={width:"100%",background:C.bg,border:`1px solid ${C.border2}`,borderRadius:8,color:C.text,fontFamily:"inherit",fontSize:14,padding:"8px 12px",outline:"none",marginTop:4,boxSizing:"border-box"};
+  const handleSave=async()=>{
+    if(hasImage&&imgFile){
+      const ext=imgFile.name.split(".").pop();
+      const path=`${Date.now()}.${ext}`;
+      const {error:upErr}=await supabase.storage.from(imageBucket).upload(path,imgFile,{upsert:true});
+      if(upErr){alert("Errore upload: "+upErr.message);return;}
+      const {data:urlData}=supabase.storage.from(imageBucket).getPublicUrl(path);
+      onSave(urlData.publicUrl,imageField);
+    }else{onSave(null,null);}
+  };
+  return <Modal title={title} onClose={onClose} onSave={handleSave} saving={saving}>
+    {hasImage&&<div style={{marginBottom:13}}>
+      <label style={{display:"block",fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim}}>Immagine</label>
+      <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:8}}>
+        {imgPreview?<img src={imgPreview} style={{width:"100%",maxHeight:160,objectFit:"cover",borderRadius:10,border:`1px solid ${C.border2}`}}/>
+          :<div style={{width:"100%",height:100,background:C.bg3,borderRadius:10,border:`2px dashed ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,color:C.textMuted}}>🖼️</div>}
+        <label style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:"8px 16px",cursor:"pointer",fontSize:12,color:C.textDim,textAlign:"center",width:"100%",boxSizing:"border-box"}}>
+          📷 Scegli foto dal telefono
+          <input type="file" accept="image/*" onChange={e=>{const f=e.target.files[0];if(f){setImgFile(f);setImgPreview(URL.createObjectURL(f));onChange(imageField,"");}}} style={{display:"none"}}/>
+        </label>
+        {imgPreview&&<button onClick={()=>{setImgFile(null);setImgPreview("");onChange(imageField,"");}} style={{fontSize:11,color:"#f87171",background:"none",border:"none",cursor:"pointer"}}>✕ Rimuovi immagine</button>}
+      </div>
+    </div>}
+    {fields.map(f=>(
+      <div key={f.id} style={{marginBottom:13}}>
+        <label style={{display:"block",fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim}}>{f.l}</label>
+        {f.sel?<select value={vals[f.id]||""} onChange={e=>onChange(f.id,e.target.value)} style={{...inp,cursor:"pointer"}}>
+            {f.sel.map(o=><option key={o} value={o} style={{background:C.bg2}}>{o||"—"}</option>)}
+          </select>
+          :f.ta?<textarea value={vals[f.id]||""} onChange={e=>onChange(f.id,e.target.value)} placeholder={f.ph} style={{...inp,minHeight:80,resize:"vertical"}}/>
+          :<input value={vals[f.id]||""} onChange={e=>onChange(f.id,e.target.value)} placeholder={f.ph} style={inp}/>}
+      </div>
+    ))}
+  </Modal>;
+}
+
 export default function App(){
   const [user,setUser]=useState(()=>{
     try{
