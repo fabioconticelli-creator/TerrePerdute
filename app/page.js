@@ -363,7 +363,6 @@ function PlayerView({user, onLogout}){
             {g.description&&<div style={{fontSize:13,color:C.textDim,fontStyle:"italic",lineHeight:1.55}}>{g.description}</div>}
           </div>
         ))}</div>;
-      }
       case "fazioni": return !campData.fazioni.length?<EmptyState msg="Nessuna fazione ancora"/>:
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {campData.fazioni.map((f,i)=>(
