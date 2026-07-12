@@ -1188,7 +1188,7 @@ function DmPlayerView({player, onUpdate}){
 
 const TABLE_MAP = {
   sessioni:{table:"sessions",fields:[{id:"num",l:"Numero",ph:"es. I"},{id:"title",l:"Titolo",ph:"Titolo..."},{id:"date",l:"Data",ph:"es. 1 Gen 2025"},{id:"excerpt",l:"Riassunto",ph:"Cosa è successo...",ta:true}]},
-  gilda:{table:"factions",fields:[{id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"🏴"},{id:"grado",l:"Grado",sel:["Ferro","Argento","Oro","Platino","Adamantio"]},{id:"rank",l:"Rango",ph:"es. Fondatori"},{id:"description",l:"Descrizione",ph:"...",ta:true},{id:"sede",l:"Sede",ph:"es. Porto di Arenmar"},{id:"influence",l:"Potere %",ph:"0-100"}],tipo:"gilda",hasImage:true,imageBucket:"npc-images",imageField:"img_url"},
+  gilda:{table:"factions",fields:[{id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"🏴"},{id:"rank",l:"Rango",ph:"es. Fondatori"},{id:"description",l:"Descrizione",ph:"...",ta:true},{id:"sede",l:"Sede",ph:"es. Porto di Arenmar"},{id:"influence",l:"Fama %",ph:"0-100"}],tipo:"gilda",hasImage:true,imageBucket:"npc-images",imageField:"img_url"},
   fazioni:{table:"factions",fields:[{id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"⚔️"},{id:"description",l:"Descrizione",ph:"...",ta:true},{id:"influence",l:"Influenza %",ph:"0-100"}],tipo:"fazione"},
   mondo:{table:"locations",fields:[{id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"🏰"},{id:"sub",l:"Descrizione",ph:"...",ta:true}]},
   cronologia:{table:"timeline",fields:[{id:"date",l:"Data",ph:"Anno 1, Giorno X"},{id:"title",l:"Titolo",ph:"Evento..."},{id:"description",l:"Descrizione",ph:"Cosa accadde...",ta:true}],hasImage:true,imageBucket:"timeline-images",imageField:"image_path"},
@@ -1767,9 +1767,7 @@ export default function App(){
         </div>;
 
       case "gilda":{
-        const gradoOrder={"Adamantio":5,"Platino":4,"Oro":3,"Argento":2,"Ferro":1};
-        const gradoColor={"Adamantio":"#b9f2ff","Platino":"#e5e4e2","Oro":C.gold,"Argento":"#c0c0c0","Ferro":"#a0522d"};
-        const sortedGilda=[...data.gilda].sort((a,b)=>(gradoOrder[b.grado]||0)-(gradoOrder[a.grado]||0));
+        const sortedGilda=[...data.gilda].sort((a,b)=>(b.influence||0)-(a.influence||0));
         return <div>
         <div style={{textAlign:"center",padding:"16px 0 24px"}}>
           <div style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.gold,textShadow:`0 0 24px ${C.goldGlow}`}}>La Gilda</div>
@@ -1782,16 +1780,13 @@ export default function App(){
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
               <div style={{width:44,height:44,background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{g.icon||"🏴"}</div>
               <div style={{flex:1}}>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{g.name}</div>
-                  {g.grado&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:5,background:"rgba(0,0,0,.4)",color:gradoColor[g.grado]||C.textDim,border:`1px solid ${gradoColor[g.grado]||C.border2}`}}>{g.grado}</span>}
-                </div>
+                <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{g.name}</div>
                 {g.rank&&<div style={{fontSize:10,fontWeight:600,letterSpacing:".15em",textTransform:"uppercase",color:C.gold,marginTop:2}}>{g.rank}</div>}
               </div>
             </div>
             {g.sede&&<div style={{fontSize:12,color:C.textDim,marginBottom:6}}>📍 {g.sede}</div>}
             {g.description&&<div style={{fontSize:13,color:C.textDim,fontStyle:"italic",lineHeight:1.55,marginBottom:8}}>{g.description}</div>}
-            {g.influence!=null&&<><div style={{height:3,background:C.bg3,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${g.influence||0}%`,background:`linear-gradient(90deg,${C.goldDim},${C.gold})`}}/></div><div style={{fontSize:10,color:C.textMuted,marginTop:3}}>Potere: {g.influence||0}%</div></>}
+            {g.influence!=null&&<><div style={{height:3,background:C.bg3,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${g.influence||0}%`,background:`linear-gradient(90deg,${C.goldDim},${C.gold})`}}/></div><div style={{fontSize:10,color:C.textMuted,marginTop:3}}>Fama: {g.influence||0}%</div></>}
             <EditBtns v="gilda" item={g}/>
             </div>
           </div>
