@@ -1683,7 +1683,7 @@ export default function App(){
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <button onClick={()=>setSidebarOpen(o=>!o)} style={{background:"none",border:`1px solid ${C.border2}`,borderRadius:8,color:C.textDim,fontSize:16,width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>☰</button>
           <div style={{width:26,height:26,borderRadius:"50%",background:`radial-gradient(circle at 35% 35%,${C.gold},${C.goldDim})`,boxShadow:`0 0 10px ${C.goldGlow}`,flexShrink:0}}/>
-          <span style={{fontFamily:"'Cinzel',serif",fontSize:16,fontWeight:600,color:C.gold,letterSpacing:".06em"}}>{TITLES[view]||view}</span>
+          <span style={{fontFamily:"'Cinzel',serif",fontSize:16,fontWeight:600,color:C.gold,letterSpacing:".06em"}}>{TITLES[view]||(view.startsWith("player_")&&selectedPlayer?selectedPlayer.name:view)}</span>
         </div>
         {(TABLE_MAP[view]||view==="npc")&&<button onClick={openAdd} style={{fontSize:12,fontWeight:600,padding:"6px 14px",borderRadius:8,background:C.gold,color:"#0b1120",border:"none",cursor:"pointer"}}>+ Aggiungi</button>}
       </div>
