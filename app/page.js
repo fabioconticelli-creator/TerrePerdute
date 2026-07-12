@@ -160,7 +160,7 @@ function NpcPanel({npc,onClose}){
       </div>
       <div style={{textAlign:"center",padding:"0 0 14px",color:C.goldDim,fontSize:12}}>✦</div>
       <div style={{padding:"0 20px 16px"}}>
-        {npc.img_url?<img src={npc.img_url} alt={npc.name} style={{width:"100%",aspectRatio:"2/3",borderRadius:12,border:`2px solid ${C.gold}`,objectFit:"cover",objectPosition:"center top",display:"block"}}/>
+        {npc.img_url?<img src={npc.img_url} alt={npc.name} style={{width:"100%",maxHeight:480,borderRadius:12,border:`2px solid ${C.gold}`,objectFit:"contain",background:C.bg3,display:"block"}}/>
           :<div style={{width:"100%",height:200,background:C.bg3,borderRadius:12,border:`1px solid ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:56}}>{npc.icon||"👤"}</div>}
       </div>
       <div style={{padding:"0 20px 32px"}}>
@@ -358,7 +358,7 @@ function PlayerView({user, onLogout}){
           <div key={g.id||i} style={{background:C.bg2,border:`1px solid ${C.border}`,borderLeft:`3px solid ${C.gold}`,borderRadius:12,padding:"14px 16px",marginBottom:10}}>
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
               <div style={{width:44,height:44,background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{g.icon||"🏴"}</div>
-              <div><div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{g.name}</div>{g.rank&&<div style={{fontSize:10,fontWeight:600,letterSpacing:".15em",textTransform:"uppercase",color:C.gold,marginTop:2}}>{g.rank}</div>}</div>
+              <div><div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{g.name}</div></div>
             </div>
             {g.description&&<div style={{fontSize:13,color:C.textDim,fontStyle:"italic",lineHeight:1.55}}>{g.description}</div>}
           </div>
@@ -398,7 +398,7 @@ function PlayerView({user, onLogout}){
               <div style={{fontSize:10,fontWeight:600,letterSpacing:".15em",textTransform:"uppercase",color:C.goldDim,marginBottom:3}}>{c.date}</div>
               <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text,marginBottom:4}}>{c.title}</div>
               <div style={{fontSize:13,color:C.textDim,fontStyle:"italic",lineHeight:1.55}}>{c.description}</div>
-              {c.image_path&&<img src={c.image_path} alt={c.title} style={{width:"100%",borderRadius:10,border:`1px solid ${C.border2}`,objectFit:"cover",maxHeight:160,marginTop:8,display:"block"}}/>}
+              {c.image_path&&<img src={c.image_path} alt={c.title} style={{width:"100%",borderRadius:10,border:`1px solid ${C.border2}`,objectFit:"contain",background:C.bg3,maxHeight:200,marginTop:8,display:"block"}}/>}
             </div>
           ))}
         </div>;
@@ -1188,7 +1188,7 @@ function DmPlayerView({player, onUpdate}){
 
 const TABLE_MAP = {
   sessioni:{table:"sessions",fields:[{id:"num",l:"Numero",ph:"es. I"},{id:"title",l:"Titolo",ph:"Titolo..."},{id:"date",l:"Data",ph:"es. 1 Gen 2025"},{id:"excerpt",l:"Riassunto",ph:"Cosa è successo...",ta:true}]},
-  gilda:{table:"factions",fields:[{id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"🏴"},{id:"rank",l:"Rango",ph:"es. Fondatori"},{id:"description",l:"Descrizione",ph:"...",ta:true},{id:"sede",l:"Sede",ph:"es. Porto di Arenmar"},{id:"influence",l:"Fama %",ph:"0-100"}],tipo:"gilda",hasImage:true,imageBucket:"npc-images",imageField:"img_url"},
+  gilda:{table:"factions",fields:[{id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"🏴"},{id:"grado",l:"Grado",sel:["Ferro","Argento","Oro","Platino","Adamantio"]},{id:"description",l:"Descrizione",ph:"...",ta:true},{id:"sede",l:"Sede",ph:"es. Porto di Arenmar"},{id:"influence",l:"Fama %",ph:"0-100"}],tipo:"gilda",hasImage:true,imageBucket:"npc-images",imageField:"img_url"},
   fazioni:{table:"factions",fields:[{id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"⚔️"},{id:"description",l:"Descrizione",ph:"...",ta:true},{id:"influence",l:"Influenza %",ph:"0-100"}],tipo:"fazione"},
   mondo:{table:"locations",fields:[{id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"🏰"},{id:"sub",l:"Descrizione",ph:"...",ta:true}]},
   cronologia:{table:"timeline",fields:[{id:"date",l:"Data",ph:"Anno 1, Giorno X"},{id:"title",l:"Titolo",ph:"Evento..."},{id:"description",l:"Descrizione",ph:"Cosa accadde...",ta:true}],hasImage:true,imageBucket:"timeline-images",imageField:"image_path"},
@@ -1274,7 +1274,7 @@ function NpcFormModal({npc,onClose,onSaved}){
     <div style={{marginBottom:13}}>
       <label style={lbl}>Immagine</label>
       <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:8,alignItems:"center"}}>
-        {imgPreview?<img src={imgPreview} style={{width:"100%",height:300,objectFit:"cover",objectPosition:"center top",borderRadius:10,border:`1px solid ${C.border2}`}}/>
+        {imgPreview?<img src={imgPreview} style={{width:"100%",maxHeight:280,objectFit:"contain",background:C.bg3,borderRadius:10,border:`1px solid ${C.border2}`}}/>
           :<div style={{width:"100%",height:120,background:C.bg3,borderRadius:10,border:`2px dashed ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32}}>{vals.icon||"👤"}</div>}
         <label style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:"8px 16px",cursor:"pointer",fontSize:12,color:C.textDim,textAlign:"center",width:"100%",boxSizing:"border-box"}}>
           📷 Scegli foto dal telefono
@@ -1326,7 +1326,7 @@ function GenericModal({title,fields,vals,onClose,onSave,saving,onChange,hasImage
     {hasImage&&<div style={{marginBottom:13}}>
       <label style={{display:"block",fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim}}>Immagine</label>
       <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:8}}>
-        {imgPreview?<img src={imgPreview} style={{width:"100%",maxHeight:160,objectFit:"cover",borderRadius:10,border:`1px solid ${C.border2}`}}/>
+        {imgPreview?<img src={imgPreview} style={{width:"100%",maxHeight:200,objectFit:"contain",background:C.bg3,borderRadius:10,border:`1px solid ${C.border2}`}}/>
           :<div style={{width:"100%",height:100,background:C.bg3,borderRadius:10,border:`2px dashed ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,color:C.textMuted}}>🖼️</div>}
         <label style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:"8px 16px",cursor:"pointer",fontSize:12,color:C.textDim,textAlign:"center",width:"100%",boxSizing:"border-box"}}>
           📷 Scegli foto dal telefono
@@ -1552,7 +1552,7 @@ function BastioniView({isAuth, onUpdate}){
           :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:10}}>
             {(nave.stanze||[]).map((s,i)=>(
               <div key={i} style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden"}}>
-                {s.img?<img src={s.img} style={{width:"100%",height:120,objectFit:"cover"}}/>
+                {s.img?<img src={s.img} style={{width:"100%",height:120,objectFit:"contain",background:C.bg}}/>
                   :<div style={{height:80,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28}}>🚪</div>}
                 <div style={{padding:10}}>
                   <div style={{fontFamily:"'Cinzel',serif",fontSize:12,fontWeight:600,color:C.text,marginBottom:4}}>{s.name}</div>
@@ -1767,7 +1767,9 @@ export default function App(){
         </div>;
 
       case "gilda":{
-        const sortedGilda=[...data.gilda].sort((a,b)=>(b.influence||0)-(a.influence||0));
+        const gradoOrd={"Ferro":1,"Argento":2,"Oro":3,"Platino":4,"Adamantio":5};
+        const gradoColor={"Ferro":"#a0522d","Argento":"#c0c0c0","Oro":C.gold,"Platino":"#e5e4e2","Adamantio":"#b9f2ff"};
+        const sortedGilda=[...data.gilda].sort((a,b)=>(gradoOrd[a.grado]||0)-(gradoOrd[b.grado]||0));
         return <div>
         <div style={{textAlign:"center",padding:"16px 0 24px"}}>
           <div style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.gold,textShadow:`0 0 24px ${C.goldGlow}`}}>La Gilda</div>
@@ -1775,12 +1777,15 @@ export default function App(){
         </div>
         {!data.gilda.length?<EmptyState msg="Nessun membro della gilda ancora"/>:sortedGilda.map((g,i)=>(
           <div key={g.id||i} style={{background:C.bg2,border:`1px solid ${C.border}`,borderLeft:`3px solid ${C.gold}`,borderRadius:12,overflow:"hidden",marginBottom:10}}>
-            {g.img_url&&<img src={g.img_url} alt={g.name} style={{width:"100%",maxHeight:180,objectFit:"cover",display:"block"}}/>}
+            {g.img_url&&<img src={g.img_url} alt={g.name} style={{width:"100%",maxHeight:280,objectFit:"contain",background:C.bg3,display:"block"}}/>}
             <div style={{padding:"14px 16px"}}>
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
               <div style={{width:44,height:44,background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{g.icon||"🏴"}</div>
               <div style={{flex:1}}>
-                <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{g.name}</div>
+                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{g.name}</div>
+                  {g.grado&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:5,background:"rgba(0,0,0,.5)",color:gradoColor[g.grado]||C.textDim,border:`1px solid ${gradoColor[g.grado]||C.border2}`}}>{g.grado}</span>}
+                </div>
                 {g.rank&&<div style={{fontSize:10,fontWeight:600,letterSpacing:".15em",textTransform:"uppercase",color:C.gold,marginTop:2}}>{g.rank}</div>}
               </div>
             </div>
@@ -1832,7 +1837,7 @@ export default function App(){
               <div style={{fontSize:10,fontWeight:600,letterSpacing:".15em",textTransform:"uppercase",color:C.goldDim,marginBottom:3}}>{c.date}</div>
               <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text,marginBottom:4}}>{c.title}</div>
               <div style={{fontSize:13,color:C.textDim,fontStyle:"italic",lineHeight:1.55}}>{c.description}</div>
-              {c.image_path&&<img src={c.image_path} alt={c.title} style={{width:"100%",borderRadius:10,border:`1px solid ${C.border2}`,objectFit:"cover",maxHeight:160,marginTop:8,display:"block"}}/>}
+              {c.image_path&&<img src={c.image_path} alt={c.title} style={{width:"100%",borderRadius:10,border:`1px solid ${C.border2}`,objectFit:"contain",background:C.bg3,maxHeight:200,marginTop:8,display:"block"}}/>}
               <EditBtns v="cronologia" item={c}/>
             </div>
           ))}
