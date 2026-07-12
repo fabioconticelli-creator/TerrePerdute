@@ -319,6 +319,7 @@ function PlayerView({user, onLogout}){
     {v:"npc",icon:"👤",label:"NPC"},
     {v:"mondo",icon:"🌍",label:"Fogli del Mondo"},
     {v:"mappa",icon:"🗺️",label:"Mappa"},
+    {v:"bastioni",icon:"⚓",label:"Bastioni"},
   ];
 
   if(loading) return <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",color:C.textDim,fontSize:14}}>Caricamento...</div>;
@@ -401,8 +402,7 @@ function PlayerView({user, onLogout}){
             </div>
           ))}
         </div>;
-      case "mappa":{
-        const mapImg=campData.map_config?.map_path;
+      case "bastioni": return <BastioniView isAuth={false} onUpdate={()=>{}}/>;
         return <div>
           <div style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden",marginBottom:12}}>
             {mapImg?<div style={{position:"relative"}}>
@@ -1346,6 +1346,271 @@ function GenericModal({title,fields,vals,onClose,onSave,saving,onChange,hasImage
   </Modal>;
 }
 
+// ── BASTIONI VIEW ──
+function BastioniView({isAuth, onUpdate}){
+  const [nave, setNave] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [editVals, setEditVals] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [imgFile, setImgFile] = useState(null);
+  const [imgPreview, setImgPreview] = useState("");
+  const [stanzaModal, setStanzaModal] = useState(null);
+  const [stanzaVals, setStanzaVals] = useState({});
+  const [stanzaImgFile, setStanzaImgFile] = useState(null);
+  const [stanzaImgPreview, setStanzaImgPreview] = useState("");
+
+  const load = async () => {
+    const {data} = await supabase.from("bastioni").select("*").limit(1).maybeSingle();
+    if(data){
+      if(typeof data.stanze==="string") try{data.stanze=JSON.parse(data.stanze);}catch(e){data.stanze=[];}
+      if(!Array.isArray(data.stanze)) data.stanze=[];
+      setNave(data);
+      setImgPreview(data.image_url||"");
+    }
+    setLoading(false);
+  };
+
+  useEffect(()=>{ load(); },[]);
+
+  const saveNave = async () => {
+    if(!nave) return;
+    setSaving(true);
+    try {
+      let imageUrl = editVals.image_url || nave.image_url || "";
+      if(imgFile){
+        const ext = imgFile.name.split(".").pop();
+        const path = `bastioni/${Date.now()}.${ext}`;
+        const {error:upErr} = await supabase.storage.from("npc-images").upload(path, imgFile, {upsert:true});
+        if(!upErr){
+          const {data:urlData} = supabase.storage.from("npc-images").getPublicUrl(path);
+          imageUrl = urlData.publicUrl;
+        }
+      }
+      const numFields = ["scafo_attuale","scafo_max","vele_attuale","vele_max","equipaggio_attuale","equipaggio_max","feriti","caduti","morale","provviste_attuale","provviste_max","giorni_rimasti"];
+      const obj = {...editVals, image_url: imageUrl};
+      numFields.forEach(f=>{ if(obj[f]!==undefined) obj[f]=parseInt(obj[f])||0; });
+      delete obj.id; delete obj.created_at;
+      await supabase.from("bastioni").update(obj).eq("id", nave.id);
+      setEditing(false); setImgFile(null); load();
+    } catch(e){ alert("Errore: "+e.message); }
+    setSaving(false);
+  };
+
+  const updateField = async (field, value) => {
+    if(!nave) return;
+    const val = typeof value === "number" ? value : (parseInt(value)||0);
+    await supabase.from("bastioni").update({[field]: val}).eq("id", nave.id);
+    setNave(n=>({...n, [field]: val}));
+  };
+
+  const saveStanza = async () => {
+    if(!nave) return;
+    setSaving(true);
+    try {
+      let imgUrl = stanzaVals.img || "";
+      if(stanzaImgFile){
+        const ext = stanzaImgFile.name.split(".").pop();
+        const path = `bastioni/stanze/${Date.now()}.${ext}`;
+        const {error:upErr} = await supabase.storage.from("npc-images").upload(path, stanzaImgFile, {upsert:true});
+        if(!upErr){
+          const {data:urlData} = supabase.storage.from("npc-images").getPublicUrl(path);
+          imgUrl = urlData.publicUrl;
+        }
+      }
+      let stanze = [...(nave.stanze||[])];
+      if(stanzaModal?.idx !== undefined){
+        stanze[stanzaModal.idx] = {...stanzaVals, img: imgUrl};
+      } else {
+        stanze.push({...stanzaVals, img: imgUrl});
+      }
+      await supabase.from("bastioni").update({stanze}).eq("id", nave.id);
+      setStanzaModal(null); setStanzaImgFile(null); setStanzaImgPreview(""); load();
+    } catch(e){ alert("Errore: "+e.message); }
+    setSaving(false);
+  };
+
+  const deleteStanza = async (idx) => {
+    if(!window.confirm("Eliminare questa stanza?")) return;
+    const stanze = nave.stanze.filter((_,i)=>i!==idx);
+    await supabase.from("bastioni").update({stanze}).eq("id", nave.id);
+    load();
+  };
+
+  const inp = {width:"100%",background:C.bg,border:`1px solid ${C.border2}`,borderRadius:8,color:C.text,fontFamily:"inherit",fontSize:14,padding:"8px 12px",outline:"none",marginTop:4,boxSizing:"border-box"};
+  const lbl = {display:"block",fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim,marginBottom:2};
+
+  const StatRow = ({label, fieldA, fieldM, note}) => (
+    <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 2fr",gap:8,alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${C.border}`}}>
+      <div style={{fontSize:13,color:C.text,fontWeight:600}}>{label}</div>
+      <input type="number" value={nave?.[fieldA]||0} onChange={e=>updateField(fieldA,e.target.value)}
+        disabled={!isAuth} style={{...inp,marginTop:0,textAlign:"center",fontFamily:"'Cinzel',serif",fontSize:16,fontWeight:700,color:C.gold,opacity:isAuth?1:.7}}/>
+      <div style={{fontFamily:"'Cinzel',serif",fontSize:14,color:C.textDim,textAlign:"center"}}>{nave?.[fieldM]||0}</div>
+      <input value={note||""} readOnly style={{...inp,marginTop:0,fontSize:12,color:C.textDim,opacity:.7}}/>
+    </div>
+  );
+
+  if(loading) return <div style={{textAlign:"center",padding:"60px 20px",color:C.textDim}}>Caricamento...</div>;
+  if(!nave) return <EmptyState msg="Nessun bastione trovato"/>;
+
+  return (
+    <div style={{maxWidth:700,margin:"0 auto"}}>
+      {/* Header nave */}
+      <div style={{textAlign:"center",padding:"16px 0 20px"}}>
+        <div style={{fontFamily:"'Cinzel',serif",fontSize:22,fontWeight:700,color:C.gold,textShadow:`0 0 24px ${C.goldGlow}`}}>{nave.name||"La Nave"}</div>
+        <div style={{fontSize:10,fontWeight:600,letterSpacing:".2em",textTransform:"uppercase",color:C.textMuted,marginTop:4}}>Bastione del Party</div>
+      </div>
+
+      {/* Immagine nave */}
+      <div style={{marginBottom:16,position:"relative"}}>
+        {nave.image_url
+          ? <img src={nave.image_url} style={{width:"100%",borderRadius:12,border:`1px solid ${C.border2}`,maxHeight:400,objectFit:"contain",display:"block",background:C.bg3}}/>
+          : <div style={{height:200,background:C.bg3,borderRadius:12,border:`2px dashed ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:10}}>
+              <div style={{fontSize:40,opacity:.3}}>⚓</div>
+              <div style={{fontSize:13,color:C.textMuted}}>Nessuna immagine della nave</div>
+            </div>}
+        {isAuth&&<label style={{position:"absolute",bottom:10,right:10,background:"rgba(0,0,0,.8)",border:`1px solid ${C.border2}`,borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:12,color:C.textDim}}>
+          📷 {nave.image_url?"Cambia":"Carica"} immagine
+          <input type="file" accept="image/*" onChange={async e=>{
+            const f=e.target.files[0]; if(!f)return;
+            const ext=f.name.split(".").pop();
+            const path=`bastioni/${Date.now()}.${ext}`;
+            const {error:upErr}=await supabase.storage.from("npc-images").upload(path,f,{upsert:true});
+            if(upErr){alert("Errore: "+upErr.message);return;}
+            const {data:urlData}=supabase.storage.from("npc-images").getPublicUrl(path);
+            await supabase.from("bastioni").update({image_url:urlData.publicUrl}).eq("id",nave.id);
+            load();
+          }} style={{display:"none"}}/>
+        </label>}
+      </div>
+
+      {/* STATO DELLA NAVE */}
+      <Card style={{marginBottom:12}}>
+        <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span>⚓ Stato della Nave</span>
+          {isAuth&&<Btn onClick={()=>{setEditVals({...nave});setEditing(true);}}>✏ Modifica tutto</Btn>}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 2fr",gap:8,marginBottom:8}}>
+          {["Statistica","Attuale","Massimo","Note"].map(h=><div key={h} style={{fontSize:9,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:C.textMuted}}>{h}</div>)}
+        </div>
+        <StatRow label="🛡 Scafo" fieldA="scafo_attuale" fieldM="scafo_max" note="A 0 la nave affonda"/>
+        <StatRow label="⛵ Vele" fieldA="vele_attuale" fieldM="vele_max" note="Velocità e manovre"/>
+        <StatRow label="👥 Equipaggio" fieldA="equipaggio_attuale" fieldM="equipaggio_max" note={`Feriti: ${nave.feriti||0} • Caduti: ${nave.caduti||0}`}/>
+        <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 2fr",gap:8,alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${C.border}`}}>
+          <div style={{fontSize:13,color:C.text,fontWeight:600}}>⚔️ Morale</div>
+          <div style={{display:"flex",gap:4}}>
+            {[1,2,3,4,5].map(i=>(
+              <div key={i} onClick={()=>isAuth&&updateField("morale",i)} style={{width:20,height:20,borderRadius:"50%",border:`2px solid ${C.gold}`,background:i<=(nave.morale||0)?C.gold:"transparent",cursor:isAuth?"pointer":"default"}}/>
+            ))}
+          </div>
+          <div style={{fontFamily:"'Cinzel',serif",fontSize:14,color:C.textDim,textAlign:"center"}}>5</div>
+          <div style={{fontSize:12,color:C.textDim}}>0: crisi • 1: svantaggio</div>
+        </div>
+        <StatRow label="🍞 Provviste" fieldA="provviste_attuale" fieldM="provviste_max" note={`Giorni rimasti: ${nave.giorni_rimasti||0}`}/>
+      </Card>
+
+      {/* RUOLI */}
+      <Card style={{marginBottom:12}}>
+        <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:12}}>⚔️ Ruoli del Party</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+          {["Ruolo","Personaggio"].map(h=><div key={h} style={{fontSize:9,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:C.textMuted}}>{h}</div>)}
+        </div>
+        {[["⚓ Capitano","capitano","Persuasione/Intimidire"],["🗺️ Navigatore","navigatore","Sopravvivenza"],["🔧 Nostromo","nostromo","Atletica/Attrezzi"],["💣 Cannoniere","cannoniere","Percezione/Attacco"]].map(([ruolo,field,prova])=>(
+          <div key={field} style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,padding:"8px 0",borderBottom:`1px solid ${C.border}`,alignItems:"center"}}>
+            <div>
+              <div style={{fontSize:13,fontWeight:600,color:C.text}}>{ruolo}</div>
+              <div style={{fontSize:10,color:C.textMuted,marginTop:2}}>{prova}</div>
+            </div>
+            <input value={nave?.[field]||""} onChange={async e=>{
+              const v=e.target.value;
+              setNave(n=>({...n,[field]:v}));
+              await supabase.from("bastioni").update({[field]:v}).eq("id",nave.id);
+            }} disabled={!isAuth} placeholder="—" style={{...inp,marginTop:0,opacity:isAuth?1:.7}}/>
+          </div>
+        ))}
+      </Card>
+
+      {/* NOTE */}
+      <Card style={{marginBottom:12}}>
+        <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:10}}>📝 Note di Viaggio</div>
+        <textarea value={nave.note_viaggio||""} onChange={async e=>{
+          const v=e.target.value;
+          setNave(n=>({...n,note_viaggio:v}));
+          await supabase.from("bastioni").update({note_viaggio:v}).eq("id",nave.id);
+        }} disabled={!isAuth} placeholder="Note sul viaggio..." style={{...inp,minHeight:100,resize:"vertical",opacity:isAuth?1:.7}}/>
+      </Card>
+
+      {/* STANZE */}
+      <Card style={{marginBottom:12}}>
+        <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span>🚪 Stanze della Nave</span>
+          {isAuth&&<Btn primary onClick={()=>{setStanzaVals({name:"",description:"",img:""});setStanzaImgPreview("");setStanzaImgFile(null);setStanzaModal({});}}>+ Aggiungi</Btn>}
+        </div>
+        {(nave.stanze||[]).length===0?<div style={{textAlign:"center",padding:"20px",color:C.textMuted,fontSize:13,fontStyle:"italic"}}>Nessuna stanza ancora</div>
+          :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:10}}>
+            {(nave.stanze||[]).map((s,i)=>(
+              <div key={i} style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden"}}>
+                {s.img?<img src={s.img} style={{width:"100%",height:120,objectFit:"cover"}}/>
+                  :<div style={{height:80,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28}}>🚪</div>}
+                <div style={{padding:10}}>
+                  <div style={{fontFamily:"'Cinzel',serif",fontSize:12,fontWeight:600,color:C.text,marginBottom:4}}>{s.name}</div>
+                  {s.description&&<div style={{fontSize:11,color:C.textDim,lineHeight:1.4}}>{s.description}</div>}
+                  {isAuth&&<div style={{display:"flex",gap:4,marginTop:8}}>
+                    <button onClick={()=>{setStanzaVals({...s});setStanzaImgPreview(s.img||"");setStanzaImgFile(null);setStanzaModal({idx:i});}} style={{background:"none",border:"none",color:C.textDim,cursor:"pointer",fontSize:12}}>✏</button>
+                    <button onClick={()=>deleteStanza(i)} style={{background:"none",border:"none",color:"#f87171",cursor:"pointer",fontSize:12}}>🗑</button>
+                  </div>}
+                </div>
+              </div>
+            ))}
+          </div>}
+      </Card>
+
+      {/* EDIT MODAL */}
+      {editing&&<div onClick={()=>setEditing(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.88)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
+        <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,maxWidth:500,width:"92%",maxHeight:"88vh",overflowY:"auto",padding:20,boxShadow:`0 0 40px ${C.goldGlow}`}}>
+          <div style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.gold,marginBottom:16}}>✏ Modifica Nave</div>
+          <div style={{marginBottom:12}}><label style={lbl}>Nome Nave</label><input value={editVals.name||""} onChange={e=>setEditVals(v=>({...v,name:e.target.value}))} style={inp}/></div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+            {[["scafo_attuale","Scafo Attuale"],["scafo_max","Scafo Max"],["vele_attuale","Vele Attuali"],["vele_max","Vele Max"],["equipaggio_attuale","Equipaggio"],["equipaggio_max","Equipaggio Max"],["feriti","Feriti"],["caduti","Caduti"],["provviste_attuale","Provviste"],["provviste_max","Provviste Max"],["giorni_rimasti","Giorni Rimasti"]].map(([k,l])=>(
+              <div key={k}><label style={lbl}>{l}</label><input type="number" value={editVals[k]||0} onChange={e=>setEditVals(v=>({...v,[k]:e.target.value}))} style={inp}/></div>
+            ))}
+          </div>
+          <div style={{marginBottom:12}}><label style={lbl}>Note</label><textarea value={editVals.note||""} onChange={e=>setEditVals(v=>({...v,note:e.target.value}))} style={{...inp,minHeight:60,resize:"vertical"}}/></div>
+          <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+            <Btn onClick={()=>setEditing(false)}>Annulla</Btn>
+            <Btn primary onClick={saveNave} disabled={saving}>{saving?"Salvo...":"Salva"}</Btn>
+          </div>
+        </div>
+      </div>}
+
+      {/* STANZA MODAL */}
+      {stanzaModal!==null&&<div onClick={()=>setStanzaModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.88)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
+        <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,maxWidth:440,width:"92%",maxHeight:"88vh",overflowY:"auto",padding:20,boxShadow:`0 0 40px ${C.goldGlow}`}}>
+          <div style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.gold,marginBottom:16}}>{stanzaModal?.idx!==undefined?"Modifica Stanza":"Nuova Stanza"}</div>
+          <div style={{marginBottom:12}}>
+            <label style={lbl}>Immagine</label>
+            <div style={{marginTop:6,display:"flex",flexDirection:"column",gap:6}}>
+              {stanzaImgPreview?<img src={stanzaImgPreview} style={{width:"100%",maxHeight:180,objectFit:"cover",borderRadius:10,border:`1px solid ${C.border2}`}}/>
+                :<div style={{height:80,background:C.bg3,borderRadius:10,border:`2px dashed ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24}}>🚪</div>}
+              <label style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:"7px 14px",cursor:"pointer",fontSize:12,color:C.textDim,textAlign:"center"}}>
+                📷 Scegli foto
+                <input type="file" accept="image/*" onChange={e=>{const f=e.target.files[0];if(f){setStanzaImgFile(f);setStanzaImgPreview(URL.createObjectURL(f));}}} style={{display:"none"}}/>
+              </label>
+            </div>
+          </div>
+          <div style={{marginBottom:12}}><label style={lbl}>Nome</label><input value={stanzaVals.name||""} onChange={e=>setStanzaVals(v=>({...v,name:e.target.value}))} placeholder="es. Cabina del Capitano" style={inp}/></div>
+          <div style={{marginBottom:16}}><label style={lbl}>Descrizione</label><textarea value={stanzaVals.description||""} onChange={e=>setStanzaVals(v=>({...v,description:e.target.value}))} placeholder="Cosa c'è in questa stanza..." style={{...inp,minHeight:80,resize:"vertical"}}/></div>
+          <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+            <Btn onClick={()=>setStanzaModal(null)}>Annulla</Btn>
+            <Btn primary onClick={saveStanza} disabled={saving}>{saving?"Salvo...":"Salva"}</Btn>
+          </div>
+        </div>
+      </div>}
+    </div>
+  );
+}
+
+
 export default function App(){
   const [user,setUser]=useState(()=>{
     try{
@@ -1616,6 +1881,8 @@ export default function App(){
         </div>;
       }
 
+      case "bastioni": return <BastioniView isAuth={isAuth} onUpdate={loadAll}/>;
+
       default:
         if(view.startsWith("player_") && selectedPlayer){
           return <DmPlayerView player={selectedPlayer} onUpdate={loadAll}/>;
@@ -1629,6 +1896,7 @@ export default function App(){
     {v:"gilda",icon:"🏴",label:"Gilda"},{v:"fazioni",icon:"⚔️",label:"Fazioni"},
     {v:"npc",icon:"👤",label:"NPC"},{v:"mondo",icon:"🌍",label:"Fogli del Mondo"},
     {v:"mappa",icon:"🗺️",label:"Mappa"},
+    {v:"bastioni",icon:"⚓",label:"Bastioni"},
   ];
 
   return <div style={{display:"flex",height:"100vh",overflow:"hidden",background:C.bg,color:C.text,fontFamily:"'Inter',sans-serif"}}>
