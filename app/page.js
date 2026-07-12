@@ -195,6 +195,8 @@ function PlayerView({user, onLogout}){
   const [view, setView] = useState("scheda");
   const [campData, setCampData] = useState({sessioni:[],npc:[],gilda:[],fazioni:[],mondo:[],cronologia:[],map_pins:[],map_config:null});
   const [npcOpen, setNpcOpen] = useState(null);
+  const [allPlayers, setAllPlayers] = useState([]);
+  const [selectedCompagno, setSelectedCompagno] = useState(null);
 
   const charTabs = ["scheda","inventario","famigli","note sessione"];
 
@@ -227,6 +229,14 @@ function PlayerView({user, onLogout}){
       fazioni:factions.data||[], mondo:locations.data||[], cronologia:timeline.data||[],
       map_pins:map_pins.data||[], map_config:map_config.data?.[0]||null,
     });
+    const playersRes = await supabase.from("player_characters").select("*").order("name");
+    const parsed = (playersRes.data||[]).map(p=>{
+      if(typeof p.attacks==="string")try{p.attacks=JSON.parse(p.attacks);}catch(e){p.attacks=[];}
+      if(!Array.isArray(p.attacks))p.attacks=[];
+      if(typeof p.spell_slots==="string")try{p.spell_slots=JSON.parse(p.spell_slots);}catch(e){p.spell_slots={};}
+      return p;
+    });
+    setAllPlayers(parsed);
     setLoading(false);
   };
 
@@ -408,7 +418,67 @@ function PlayerView({user, onLogout}){
           </div>
         </div>;
       }
-      default: return null;
+      default:
+        if(view.startsWith("compagno_")&&selectedCompagno){
+          const p=selectedCompagno;
+          const hpPct=p.max_hp>0?Math.max(0,Math.min(100,((p.hp||0)/p.max_hp)*100)):0;
+          const hpColor=hpPct>60?C.green:hpPct>25?C.yellow:"#f87171";
+          return <div style={{maxWidth:520,margin:"0 auto"}}>
+            <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:16}}>
+              <div style={{width:64,height:64,borderRadius:"50%",border:`3px solid ${C.gold}`,overflow:"hidden",background:C.bg3,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,flexShrink:0}}>
+                {p.avatar_url?<img src={p.avatar_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:"🛡️"}
+              </div>
+              <div>
+                <div style={{fontFamily:"'Cinzel',serif",fontSize:20,fontWeight:700,color:C.text}}>{p.name}</div>
+                <div style={{fontSize:12,color:C.textDim,marginTop:3}}>{[p.race,p.class,`Lv ${p.level}`].filter(Boolean).join(" · ")}</div>
+              </div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
+              {[["CA",p.ac||0],["Livello",p.level||1],["Background",p.background||"—"]].map(([l,v])=>(
+                <div key={l} style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 8px",textAlign:"center"}}>
+                  <div style={{fontSize:9,fontWeight:700,letterSpacing:".18em",textTransform:"uppercase",color:C.textDim}}>{l}</div>
+                  <div style={{fontFamily:"'Cinzel',serif",fontSize:typeof v==="number"?22:13,fontWeight:700,color:C.text,marginTop:3}}>{v}</div>
+                </div>
+              ))}
+            </div>
+            <Card style={{marginBottom:12}}>
+              <div style={{fontSize:13,color:C.textDim,marginBottom:10}}>Punti Ferita</div>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{fontFamily:"'Cinzel',serif",fontSize:22,fontWeight:700,color:C.text}}>{p.hp||0}</div>
+                <div style={{fontSize:13,color:C.textDim}}>/ {p.max_hp||0}</div>
+              </div>
+              <div style={{height:8,background:C.bg4,borderRadius:4,overflow:"hidden",marginTop:10}}>
+                <div style={{height:"100%",width:`${hpPct}%`,background:hpColor,borderRadius:4,transition:"width .3s"}}/>
+              </div>
+            </Card>
+            <Card style={{marginBottom:12}}>
+              <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:10}}>Caratteristiche</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:6}}>
+                {[["FOR","str"],["DES","dex"],["COS","con"],["INT","int"],["SAG","wis"],["CAR","cha"]].map(([l,k])=>(
+                  <div key={k} style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 4px",textAlign:"center"}}>
+                    <div style={{fontSize:9,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:C.textDim}}>{l}</div>
+                    <div style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.text,margin:"3px 0"}}>{p[k]||10}</div>
+                    <div style={{fontSize:11,fontWeight:600,color:C.gold}}>{fmtMod(mod(p[k]||10))}</div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+            {(p.attacks||[]).length>0&&<Card style={{marginBottom:12}}>
+              <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:10}}>Attacchi</div>
+              <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:4,marginBottom:6}}>
+                {["Nome","Bonus","Danni"].map(h=><div key={h} style={{fontSize:9,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:C.textMuted}}>{h}</div>)}
+              </div>
+              {(p.attacks||[]).map((a,i)=>(
+                <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:4,padding:"6px 0",borderTop:`1px solid ${C.border}`}}>
+                  <div style={{fontSize:13,fontWeight:600,color:C.text}}>{a.name}</div>
+                  <div style={{fontSize:13,fontWeight:600,color:C.green}}>{a.bonus}</div>
+                  <div style={{fontSize:13,color:C.gold}}>{a.damage}</div>
+                </div>
+              ))}
+            </Card>}
+          </div>;
+        }
+        return null;
     }
   };
 
@@ -509,6 +579,27 @@ function PlayerView({user, onLogout}){
             </div>
           ))}
         </div>
+        {allPlayers.length>0&&<>
+          <div style={{height:1,background:C.border,margin:"6px 18px"}}/>
+          <div style={{padding:"14px 0 6px"}}>
+            <div style={{fontSize:10,fontWeight:600,letterSpacing:".18em",textTransform:"uppercase",color:C.textMuted,padding:"0 18px 6px"}}>La Compagnia</div>
+            {allPlayers.map((p,i)=>{
+              const vkey=`compagno_${p.id}`;
+              const hpPct=p.max_hp>0?Math.max(0,Math.min(100,((p.hp||0)/p.max_hp)*100)):0;
+              const hpColor=hpPct>60?C.green:hpPct>25?C.yellow:"#f87171";
+              return <div key={i} onClick={()=>{setSelectedCompagno(p);setView(vkey);setSidebarOpen(false);}} style={{padding:"9px 18px",cursor:"pointer",background:view===vkey?`rgba(212,160,23,.08)`:"transparent",borderLeft:`2px solid ${view===vkey?C.gold:"transparent"}`}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
+                  <div style={{width:8,height:8,borderRadius:"50%",background:hpColor,flexShrink:0}}/>
+                  <div style={{fontSize:13,color:view===vkey?C.gold:C.textDim,fontWeight:view===vkey?500:400}}>{p.name}</div>
+                  <div style={{marginLeft:"auto",fontSize:10,color:C.textMuted}}>{p.hp}/{p.max_hp}</div>
+                </div>
+                <div style={{height:3,background:C.bg3,borderRadius:2,overflow:"hidden",marginLeft:16}}>
+                  <div style={{height:"100%",width:`${hpPct}%`,background:hpColor,borderRadius:2}}/>
+                </div>
+              </div>;
+            })}
+          </div>
+        </>}
         <div style={{marginTop:"auto",padding:"14px 18px",borderTop:`1px solid ${C.border}`}}>
           <Btn onClick={onLogout} style={{width:"100%"}}>Esci</Btn>
         </div>
