@@ -1614,24 +1614,7 @@ function BastioniView({isAuth, onUpdate}){
 
 
 
-function usePullToRefresh(onRefresh){
-  useEffect(()=>{
-    let startY=0;
-    const onTouchStart=e=>{ startY=e.touches[0].clientY; };
-    const onTouchMove=e=>{
-      const dy=e.touches[0].clientY-startY;
-      const el=e.target.closest("[data-scroll]");
-      const scrollTop=el?el.scrollTop:(document.documentElement.scrollTop||document.body.scrollTop);
-      if(dy>90 && scrollTop<=0){ onRefresh(); startY=e.touches[0].clientY; }
-    };
-    document.addEventListener("touchstart",onTouchStart,{passive:true});
-    document.addEventListener("touchmove",onTouchMove,{passive:true});
-    return()=>{
-      document.removeEventListener("touchstart",onTouchStart);
-      document.removeEventListener("touchmove",onTouchMove);
-    };
-  },[onRefresh]);
-}
+
 
 export default function App(){
   const [user,setUser]=useState(()=>{
@@ -1762,7 +1745,6 @@ export default function App(){
     await supabase.from(cfg.table).delete().eq("id",id);loadAll();
   };
 
-  usePullToRefresh(loadAll);
   const openAdd=()=>{if(view==="npc")openNpcAdd();else if(TABLE_MAP[view])openGenericAdd();};
 
   const EditBtns=({v,item})=>isAuth?<div style={{display:"flex",gap:6,marginTop:10,paddingTop:9,borderTop:`1px solid ${C.border}`}}>
