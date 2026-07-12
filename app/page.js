@@ -1616,19 +1616,19 @@ function BastioniView({isAuth, onUpdate}){
 
 function usePullToRefresh(onRefresh){
   useEffect(()=>{
-    let startY=0, pulling=false;
-    const onTouchStart=e=>{ startY=e.touches[0].clientY; pulling=true; };
-    const onTouchEnd=e=>{
-      if(!pulling)return;
-      const dy=e.changedTouches[0].clientY-startY;
-      if(dy>80 && window.scrollY===0){ onRefresh(); }
-      pulling=false;
+    let startY=0;
+    const onTouchStart=e=>{ startY=e.touches[0].clientY; };
+    const onTouchMove=e=>{
+      const dy=e.touches[0].clientY-startY;
+      const el=e.target.closest("[data-scroll]");
+      const scrollTop=el?el.scrollTop:(document.documentElement.scrollTop||document.body.scrollTop);
+      if(dy>90 && scrollTop<=0){ onRefresh(); startY=e.touches[0].clientY; }
     };
     document.addEventListener("touchstart",onTouchStart,{passive:true});
-    document.addEventListener("touchend",onTouchEnd,{passive:true});
+    document.addEventListener("touchmove",onTouchMove,{passive:true});
     return()=>{
       document.removeEventListener("touchstart",onTouchStart);
-      document.removeEventListener("touchend",onTouchEnd);
+      document.removeEventListener("touchmove",onTouchMove);
     };
   },[onRefresh]);
 }
@@ -1810,7 +1810,7 @@ export default function App(){
       case "gilda":{
         const gradoOrd={"Ferro":1,"Argento":2,"Oro":3,"Platino":4,"Adamantio":5};
         const gradoColor={"Ferro":"#a0522d","Argento":"#c0c0c0","Oro":C.gold,"Platino":"#e5e4e2","Adamantio":"#b9f2ff"};
-        const sortedGilda=[...data.gilda].sort((a,b)=>(gradoOrd[a.grado]||0)-(gradoOrd[b.grado]||0));
+        const sortedGilda=[...data.gilda].sort((a,b)=>(gradoOrd[b.grado]||0)-(gradoOrd[a.grado]||0));
         return <div>
         <div style={{textAlign:"center",padding:"16px 0 24px"}}>
           <div style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.gold,textShadow:`0 0 24px ${C.goldGlow}`}}>La Gilda</div>
