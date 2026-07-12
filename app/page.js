@@ -576,7 +576,7 @@ function PlayerView({user, onLogout}){
         </div>
         <div style={{padding:"14px 0 6px"}}>
           {navItems.map(({v,icon,label})=>(
-            <div key={v} onClick={()=>{setView(v);setSidebarOpen(false);}} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 18px",cursor:"pointer",fontSize:13,fontWeight:view===v?500:400,color:view===v?C.gold:C.textDim,background:view===v?`rgba(212,160,23,.08)`:"transparent",borderLeft:`2px solid ${view===v?C.gold:"transparent"}`,userSelect:"none"}}>
+            <div key={v} onClick={()=>{setView(v);setSidebarOpen(false);load();}} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 18px",cursor:"pointer",fontSize:13,fontWeight:view===v?500:400,color:view===v?C.gold:C.textDim,background:view===v?`rgba(212,160,23,.08)`:"transparent",borderLeft:`2px solid ${view===v?C.gold:"transparent"}`,userSelect:"none"}}>
               <span style={{fontSize:14,width:18,textAlign:"center"}}>{icon}</span>{label}
             </div>
           ))}
@@ -589,7 +589,7 @@ function PlayerView({user, onLogout}){
               const vkey=`compagno_${p.id}`;
               const hpPct=p.max_hp>0?Math.max(0,Math.min(100,((p.hp||0)/p.max_hp)*100)):0;
               const hpColor=hpPct>60?C.green:hpPct>25?C.yellow:"#f87171";
-              return <div key={i} onClick={()=>{setSelectedCompagno(p);setView(vkey);setSidebarOpen(false);}} style={{padding:"9px 18px",cursor:"pointer",background:view===vkey?`rgba(212,160,23,.08)`:"transparent",borderLeft:`2px solid ${view===vkey?C.gold:"transparent"}`}}>
+              return <div key={i} onClick={()=>{setSelectedCompagno(p);setView(vkey);setSidebarOpen(false);load();}} style={{padding:"9px 18px",cursor:"pointer",background:view===vkey?`rgba(212,160,23,.08)`:"transparent",borderLeft:`2px solid ${view===vkey?C.gold:"transparent"}`}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
                   <div style={{width:8,height:8,borderRadius:"50%",background:hpColor,flexShrink:0}}/>
                   <div style={{fontSize:13,color:view===vkey?C.gold:C.textDim,fontWeight:view===vkey?500:400}}>{p.name}</div>
@@ -1708,6 +1708,7 @@ export default function App(){
   const nav=(v)=>{
     if(!v.startsWith("player_")) setSelectedPlayer(null);
     setView(v);setSidebarOpen(false);
+    loadAll();
   };
 
   const openNpcAdd=()=>setNpcModal({});
