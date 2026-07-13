@@ -231,8 +231,8 @@ function PlayerView({user, onLogout}){
     setInventory(invRes.data||[]);
     setSessionNotes(notesRes.data||[]);
     setCampData({
-      sessioni:sessions.data||[], npc:npcs.data||[], gilda:factions.data||[],
-      fazioni:factions.data||[], mondo:locations.data||[], cronologia:timeline.data||[],
+      sessioni:sessions.data||[], npc:npcs.data||[], gilda:(factions.data||[]).filter(f=>f.tipo==="gilda"),
+      fazioni:(factions.data||[]).filter(f=>f.tipo!=="gilda"), mondo:locations.data||[], cronologia:timeline.data||[],
       map_pins:map_pins.data||[], map_config:map_config.data?.[0]||null,
       bestiario:bestiary.data||[],
     });
