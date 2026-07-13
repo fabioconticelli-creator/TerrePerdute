@@ -170,8 +170,13 @@ function NpcPanel({npc,onClose}){
           {npc.attitude&&<Tag t={npc.attitude}/>}{npc.stato&&<Tag t={npc.stato}/>}
         </div>
         {npc.role&&<div style={{fontSize:13,color:C.textDim,marginBottom:6,fontStyle:"italic"}}>{npc.role}</div>}
+        {npc.sede&&<div style={{fontSize:13,marginBottom:6}}>📍 <span style={{color:C.gold}}>{npc.sede}</span></div>}
         {npc.primo_incontro&&<div style={{fontSize:13,marginBottom:14}}><strong>Primo incontro:</strong> <span style={{color:C.gold}}>{npc.primo_incontro}</span></div>}
         {npc.description&&<div style={{fontSize:15,color:C.text,lineHeight:1.75}}>{npc.description}</div>}
+        {npc.influence!=null&&npc.grado&&<div style={{marginTop:14}}>
+          <div style={{height:4,background:"#101827",borderRadius:2,overflow:"hidden",marginBottom:4}}><div style={{height:"100%",width:`${npc.influence||0}%`,background:"linear-gradient(90deg,#7a5c00,#d4a017)"}}/></div>
+          <div style={{fontSize:11,color:"#8a8070"}}>Fama: {npc.influence||0}%</div>
+        </div>}
       </div>
     </div>
   </div>;
@@ -357,26 +362,37 @@ function PlayerView({user, onLogout}){
             </div>
           ))}
         </div>;
- case "gilda":{
-  const gradoOrdP={"Adamantio":5,"Platino":4,"Oro":3,"Argento":2,"Ferro":1};
-  const gradoColorP={"Ferro":"#a0522d","Argento":"#c0c0c0","Oro":"#d4a017","Platino":"#e5e4e2","Adamantio":"#b9f2ff"};
-  const sortedG=[...campData.gilda].sort((a,b)=>(gradoOrdP[b.grado]||0)-(gradoOrdP[a.grado]||0));
-  return !campData.gilda.length?<EmptyState msg="Nessuna gilda ancora"/>:
-  <div>{sortedG.map((g,i)=>(
-    <div key={g.id||i} style={{background:"#0b1120",border:"1px solid #1a2a42",borderLeft:"3px solid #d4a017",borderRadius:12,overflow:"hidden",marginBottom:10}}>
-      {g.img_url&&<img src={g.img_url} alt={g.name} style={{width:"100%",maxHeight:240,objectFit:"contain",background:"#101827",display:"block"}}/>}
-      <div style={{padding:"14px 16px"}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:6}}>
-          <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:"#e8e4d0"}}>{g.name}</div>
-          {g.grado&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:5,background:"rgba(0,0,0,.5)",color:gradoColorP[g.grado]||"#8a8070",border:`1px solid ${gradoColorP[g.grado]||"#1e3250"}`}}>{g.grado}</span>}
-        </div>
-        {g.sede&&<div style={{fontSize:12,color:"#8a8070",marginBottom:6}}>📍 {g.sede}</div>}
-        {g.description&&<div style={{fontSize:13,color:"#8a8070",fontStyle:"italic",lineHeight:1.55,marginBottom:8}}>{g.description}</div>}
-        {g.influence!=null&&<><div style={{height:3,background:"#101827",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${g.influence||0}%`,background:"linear-gradient(90deg,#7a5c00,#d4a017)"}}/></div><div style={{fontSize:10,color:"#3a3828",marginTop:3}}>Fama: {g.influence||0}%</div></>}
-      </div>
-    </div>
-  ))}</div>;
-}
+      case "gilda":{
+        const gradoOrdP={"Adamantio":5,"Platino":4,"Oro":3,"Argento":2,"Ferro":1};
+        const gradoColorP={"Ferro":"#a0522d","Argento":"#c0c0c0","Oro":C.gold,"Platino":"#e5e4e2","Adamantio":"#b9f2ff"};
+        const sortedGP=[...campData.gilda].sort((a,b)=>(gradoOrdP[b.grado]||0)-(gradoOrdP[a.grado]||0));
+        const gradiP=["Adamantio","Platino","Oro","Argento","Ferro"];
+        return !campData.gilda.length?<EmptyState msg="Nessuna gilda ancora"/>:
+        <div>
+          {gradiP.map(grado=>{
+            const gruppi=sortedGP.filter(g=>g.grado===grado);
+            if(!gruppi.length)return null;
+            return <div key={grado} style={{marginBottom:16}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,padding:"0 2px"}}>
+                <div style={{fontSize:11,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:gradoColorP[grado]}}>{grado}</div>
+                <div style={{flex:1,height:1,background:gradoColorP[grado],opacity:.3}}/>
+              </div>
+              {gruppi.map((g,i)=>(
+                <div key={g.id||i} onClick={()=>setNpcOpen(g)} style={{display:"flex",alignItems:"center",gap:12,background:C.bg2,border:`1px solid ${C.border}`,borderLeft:`3px solid ${gradoColorP[g.grado]||C.gold}`,borderRadius:12,padding:"12px 14px",marginBottom:8,cursor:"pointer"}}>
+                  <div style={{width:48,height:48,borderRadius:10,background:C.bg3,border:`1px solid ${C.border2}`,flexShrink:0,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>
+                    {g.img_url?<img src={g.img_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:"🏴"}
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{g.name}</div>
+                    {g.sede&&<div style={{fontSize:11,color:C.textDim,marginTop:2}}>📍 {g.sede}</div>}
+                  </div>
+                  {g.influence!=null&&<div style={{fontSize:12,fontWeight:600,color:gradoColorP[g.grado]||C.gold}}>{g.influence}%</div>}
+                </div>
+              ))}
+            </div>;
+          })}
+        </div>;
+      }
       case "fazioni": return !campData.fazioni.length?<EmptyState msg="Nessuna fazione ancora"/>:
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {campData.fazioni.map((f,i)=>(
@@ -1813,35 +1829,43 @@ export default function App(){
         </div>;
 
       case "gilda":{
-        const gradoOrd={"Ferro":1,"Argento":2,"Oro":3,"Platino":4,"Adamantio":5};
+        const gradoOrd={"Adamantio":5,"Platino":4,"Oro":3,"Argento":2,"Ferro":1};
         const gradoColor={"Ferro":"#a0522d","Argento":"#c0c0c0","Oro":C.gold,"Platino":"#e5e4e2","Adamantio":"#b9f2ff"};
         const sortedGilda=[...data.gilda].sort((a,b)=>(gradoOrd[b.grado]||0)-(gradoOrd[a.grado]||0));
+        const gradiDM=["Adamantio","Platino","Oro","Argento","Ferro"];
         return <div>
-        <div style={{textAlign:"center",padding:"16px 0 24px"}}>
-          <div style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.gold,textShadow:`0 0 24px ${C.goldGlow}`}}>La Gilda</div>
-          <div style={{fontSize:10,fontWeight:600,letterSpacing:".2em",textTransform:"uppercase",color:C.textMuted,marginTop:4}}>Fratellanza & Alleanze</div>
-        </div>
-        {!data.gilda.length?<EmptyState msg="Nessun membro della gilda ancora"/>:sortedGilda.map((g,i)=>(
-          <div key={g.id||i} style={{background:C.bg2,border:`1px solid ${C.border}`,borderLeft:`3px solid ${C.gold}`,borderRadius:12,overflow:"hidden",marginBottom:10}}>
-            {g.img_url&&<img src={g.img_url} alt={g.name} style={{width:"100%",maxHeight:280,objectFit:"contain",background:C.bg3,display:"block"}}/>}
-            <div style={{padding:"14px 16px"}}>
-            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
-              <div style={{width:44,height:44,background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{g.icon||"🏴"}</div>
-              <div style={{flex:1}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                  <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{g.name}</div>
-                  {g.grado&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:5,background:"rgba(0,0,0,.5)",color:gradoColor[g.grado]||C.textDim,border:`1px solid ${gradoColor[g.grado]||C.border2}`}}>{g.grado}</span>}
-                </div>
-                {g.rank&&<div style={{fontSize:10,fontWeight:600,letterSpacing:".15em",textTransform:"uppercase",color:C.gold,marginTop:2}}>{g.rank}</div>}
-              </div>
-            </div>
-            {g.sede&&<div style={{fontSize:12,color:C.textDim,marginBottom:6}}>📍 {g.sede}</div>}
-            {g.description&&<div style={{fontSize:13,color:C.textDim,fontStyle:"italic",lineHeight:1.55,marginBottom:8}}>{g.description}</div>}
-            {g.influence!=null&&<><div style={{height:3,background:C.bg3,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${g.influence||0}%`,background:`linear-gradient(90deg,${C.goldDim},${C.gold})`}}/></div><div style={{fontSize:10,color:C.textMuted,marginTop:3}}>Fama: {g.influence||0}%</div></>}
-            <EditBtns v="gilda" item={g}/>
-            </div>
+          <div style={{textAlign:"center",padding:"16px 0 20px"}}>
+            <div style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.gold,textShadow:`0 0 24px ${C.goldGlow}`}}>La Gilda</div>
+            <div style={{fontSize:10,fontWeight:600,letterSpacing:".2em",textTransform:"uppercase",color:C.textMuted,marginTop:4}}>Fratellanza & Alleanze</div>
           </div>
-        ))}
+          {!data.gilda.length?<EmptyState msg="Nessun gruppo nella gilda ancora"/>:
+            gradiDM.map(grado=>{
+              const gruppi=sortedGilda.filter(g=>g.grado===grado);
+              if(!gruppi.length)return null;
+              return <div key={grado} style={{marginBottom:16}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                  <div style={{fontSize:11,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:gradoColor[grado]}}>{grado}</div>
+                  <div style={{flex:1,height:1,background:gradoColor[grado],opacity:.3}}/>
+                </div>
+                {gruppi.map((g,i)=>(
+                  <div key={g.id||i} onClick={()=>setNpcOpen(g)} style={{display:"flex",alignItems:"center",gap:12,background:C.bg2,border:`1px solid ${C.border}`,borderLeft:`3px solid ${gradoColor[g.grado]||C.gold}`,borderRadius:12,padding:"12px 14px",marginBottom:8,cursor:"pointer"}}>
+                    <div style={{width:48,height:48,borderRadius:10,background:C.bg3,border:`1px solid ${C.border2}`,flexShrink:0,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>
+                      {g.img_url?<img src={g.img_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:"🏴"}
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{g.name}</div>
+                      {g.sede&&<div style={{fontSize:11,color:C.textDim,marginTop:2}}>📍 {g.sede}</div>}
+                    </div>
+                    {g.influence!=null&&<div style={{fontSize:12,fontWeight:600,color:gradoColor[g.grado]||C.gold,marginRight:8}}>{g.influence}%</div>}
+                    {isAuth&&<div onClick={e=>{e.stopPropagation();}} style={{display:"flex",flexDirection:"column",gap:4}}>
+                      <Btn onClick={()=>openGenericEdit("gilda",g)}>✏</Btn>
+                      <Btn onClick={()=>deleteGeneric("gilda",g.id)}>✕</Btn>
+                    </div>}
+                  </div>
+                ))}
+              </div>;
+            })
+          }
         </div>;
       }
       case "fazioni":return !data.fazioni.length?<EmptyState msg="Nessuna fazione ancora"/>:
