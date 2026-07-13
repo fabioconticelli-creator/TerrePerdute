@@ -219,7 +219,7 @@ function PlayerView({user, onLogout}){
       supabase.from("timeline").select("*").order("created_at",{ascending:false}),
       supabase.from("map_pins").select("*").order("created_at",{ascending:false}),
       supabase.from("map_config").select("*").order("id"),
-        supabase.from("bestiary").select("*").order("name"),
+        supabase.from("bestiary").select("*").eq("unlocked",true).order("name"),
     ]);
     if(charRes.data){
       const c = charRes.data;
@@ -238,8 +238,8 @@ function PlayerView({user, onLogout}){
       map_pins:map_pins.data||[], map_config:map_config.data?.[0]||null,
       bestiario:bestiary.data||[],
     });
-    const playersRes = await supabase.from("player_characters").select("*").order("name");
-    const parsed = (playersRes.data||[]).map(p=>{
+    const playersRes2 = await supabase.from("player_characters").select("*").order("name");
+    const parsed = (playersRes2.data||[]).map(p=>{
       if(typeof p.attacks==="string")try{p.attacks=JSON.parse(p.attacks);}catch(e){p.attacks=[];}
       if(!Array.isArray(p.attacks))p.attacks=[];
       if(typeof p.spell_slots==="string")try{p.spell_slots=JSON.parse(p.spell_slots);}catch(e){p.spell_slots={};}
