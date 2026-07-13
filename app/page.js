@@ -2003,7 +2003,8 @@ export default function App(){
         fazioni:(factions.data||[]).filter(f=>f.tipo!=="gilda"),mondo:locations.data||[],cronologia:timeline.data||[],map_pins:map_pins.data||[],map_config:map_config.data?.[0]||null,
         bestiario:bestiary.data||[],
       }));
-    }catch(e){console.error(e);}
+      console.log("BESTIARY LOADED:", bestiary.data?.length, bestiary.error);
+    }catch(e){console.error('LOADALLERROR:',e);}
     setLoading(false);
   };
 
