@@ -219,7 +219,7 @@ function PlayerView({user, onLogout}){
       supabase.from("timeline").select("*").order("created_at",{ascending:false}),
       supabase.from("map_pins").select("*").order("created_at",{ascending:false}),
       supabase.from("map_config").select("*").order("id"),
-        supabase.from("bestiary").select("*").eq("unlocked",true).order("name"),
+        supabase.from("bestiary").select("*").order("name"),
     ]);
     if(charRes.data){
       const c = charRes.data;
@@ -238,8 +238,8 @@ function PlayerView({user, onLogout}){
       map_pins:map_pins.data||[], map_config:map_config.data?.[0]||null,
       bestiario:bestiary.data||[],
     });
-    const playersRes2 = await supabase.from("player_characters").select("*").order("name");
-    const parsed = (playersRes2.data||[]).map(p=>{
+    const playersRes = await supabase.from("player_characters").select("*").order("name");
+    const parsed = (playersRes.data||[]).map(p=>{
       if(typeof p.attacks==="string")try{p.attacks=JSON.parse(p.attacks);}catch(e){p.attacks=[];}
       if(!Array.isArray(p.attacks))p.attacks=[];
       if(typeof p.spell_slots==="string")try{p.spell_slots=JSON.parse(p.spell_slots);}catch(e){p.spell_slots={};}
@@ -1398,6 +1398,59 @@ function BestiaryView({isAuth, data, onUpdate}){
   const [imgPreview,setImgPreview]=useState("");
   const [saving,setSaving]=useState(false);
   const [detailOpen,setDetailOpen]=useState(null);
+  const [autoImg,setAutoImg]=useState(null);
+  const [loadingImg,setLoadingImg]=useState(false);
+
+  // Map Italian names to D&D 5e API English names
+  const nameMap={
+    "Aboleth":"aboleth","Ammasso Gelatinoso":"gelatinous-cube","Arpia":"harpy",
+    "Banshee":"banshee","Basilisco":"basilisk","Bugbear":"bugbear","Bulette":"bulette",
+    "Ciclope":"cyclops","Coccodrillo":"crocodile","Displacer Beast":"displacer-beast",
+    "Drago Antico Bianco":"ancient-white-dragon","Drago Antico Blu":"ancient-blue-dragon",
+    "Drago Antico Nero":"ancient-black-dragon","Drago Antico Rosso":"ancient-red-dragon",
+    "Drago Antico Verde":"ancient-green-dragon","Drago d'Oro Antico":"ancient-gold-dragon",
+    "Drago d'Argento Antico":"ancient-silver-dragon","Drago di Gioventù Rosso":"young-red-dragon",
+    "Dracolich":"dracolich","Drow":"drow","Drider":"drider","Elementale dell'Acqua":"water-elemental",
+    "Elementale dell'Aria":"air-elemental","Elementale della Terra":"earth-elemental",
+    "Elementale del Fuoco":"fire-elemental","Ettin":"ettin","Fantasma":"ghost",
+    "Fomoriano":"fomorian","Gargoyle":"gargoyle","Ghoul":"ghoul",
+    "Gigante delle Colline":"hill-giant","Gigante del Fuoco":"fire-giant",
+    "Gigante del Gelo":"frost-giant","Gigante delle Nuvole":"cloud-giant",
+    "Gigante delle Pietre":"stone-giant","Gigante delle Tempeste":"storm-giant",
+    "Goblin":"goblin","Gorgone":"gorgon","Grifo":"griffon","Hobgoblin":"hobgoblin",
+    "Idra":"hydra","Kobold":"kobold","Kraken":"kraken","Lamia":"lamia","Lich":"lich",
+    "Manticora":"manticore","Medusa":"medusa","Mimic":"mimic","Minotauro":"minotaur",
+    "Mummia":"mummy","Mummia Lord":"mummy-lord","Ogre":"ogre","Orco":"orc",
+    "Orsogufo":"owlbear","Pegaso":"pegasus","Roc":"roc","Salamandra":"salamander",
+    "Scheletro":"skeleton","Sirena":"merrow","Spettro":"specter",
+    "Succube/Incubo":"succubus","Tarrasque":"tarrasque","Treant":"treant",
+    "Troll":"troll","Unicorno":"unicorn","Vampiro":"vampire","Vampiro Spawn":"vampire-spawn",
+    "Verme Viola":"purple-worm","Wraith":"wraith","Wyvern":"wyvern","Zombie":"zombie",
+    "Demone Balor":"balor","Demone Dretch":"dretch","Demone Vrock":"vrock",
+    "Demone Hezrou":"hezrou","Demone Glabrezu":"glabrezu","Demone Marilith":"marilith",
+    "Demone Nalfeshnee":"nalfeshnee","Diavolo Pit Fiend":"pit-fiend",
+    "Diavolo Erinyes":"erinyes","Diavolo Chain":"chain-devil",
+    "Diavolo Bone":"bone-devil","Diavolo Barbed":"barbed-devil",
+    "Sfinge Androsphinx":"androsphinx","Sfinge Gynosphinx":"gynosphinx",
+  };
+
+  const fetchAutoImage = async (creature) => {
+    if(creature.img_url) { setAutoImg(null); return; }
+    setAutoImg(null); setLoadingImg(true);
+    try {
+      const slug = nameMap[creature.name];
+      if(slug) {
+        const res = await fetch(`https://www.dnd5eapi.co/api/monsters/${slug}`);
+        if(res.ok){
+          const json = await res.json();
+          if(json.image) { setAutoImg("https://www.dnd5eapi.co"+json.image); setLoadingImg(false); return; }
+        }
+      }
+      // Fallback: use Wikipedia search
+      setAutoImg(null);
+    } catch(e){}
+    setLoadingImg(false);
+  };
 
   const TYPES=["Bestia","Umanoide","Non morto","Demone","Drago","Costrutto","Fata","Gigante","Melma","Pianta","Aberrazione","Elementale","Celeste","Mostruosità"];
   const CR=["0","1/8","1/4","1/2","1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","23","24","25","26","27","28","29","30"];
@@ -1451,7 +1504,7 @@ function BestiaryView({isAuth, data, onUpdate}){
     {filtered.length===0?<EmptyState msg="Nessuna creatura nel bestiario"/>:
       <div style={{display:"flex",flexDirection:"column",gap:8}}>
         {filtered.map((c,i)=>(
-          <div key={c.id||i} onClick={()=>setDetailOpen(c)} style={{display:"flex",alignItems:"center",gap:12,background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",cursor:"pointer"}}>
+          <div key={c.id||i} onClick={()=>{setDetailOpen(c);fetchAutoImage(c);}} style={{display:"flex",alignItems:"center",gap:12,background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",cursor:"pointer"}}>
             <div style={{width:52,height:52,borderRadius:10,background:C.bg3,border:`1px solid ${C.border2}`,flexShrink:0,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>
               {c.img_url?<img src={c.img_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:"🐉"}
             </div>
@@ -1479,9 +1532,12 @@ function BestiaryView({isAuth, data, onUpdate}){
           <span style={{fontFamily:"'Cinzel',serif",fontSize:20,fontWeight:700,color:C.gold}}>{detailOpen.name}</span>
           <button onClick={()=>setDetailOpen(null)} style={{background:"none",border:"none",fontSize:22,color:C.textDim,cursor:"pointer"}}>✕</button>
         </div>
-        {detailOpen.img_url&&<div style={{padding:"0 20px 16px"}}>
-          <img src={detailOpen.img_url} style={{width:"100%",maxHeight:300,objectFit:"contain",background:C.bg3,borderRadius:12,border:`1px solid ${C.border2}`,display:"block"}}/>
-        </div>}
+        <div style={{padding:"0 20px 16px"}}>
+          {(detailOpen.img_url||autoImg)?
+            <img src={detailOpen.img_url||autoImg} style={{width:"100%",maxHeight:300,objectFit:"contain",background:C.bg3,borderRadius:12,border:`1px solid ${C.border2}`,display:"block"}}/>
+            :loadingImg?<div style={{height:120,background:C.bg3,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",color:C.textDim,fontSize:13}}>Caricamento immagine...</div>
+            :<div style={{height:80,background:C.bg3,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:48}}>🐉</div>}
+        </div>
         <div style={{padding:"0 20px 32px"}}>
           <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
             {detailOpen.type&&<span style={{fontSize:11,fontWeight:600,padding:"3px 10px",border:`1px solid ${C.border2}`,borderRadius:6,color:C.textDim}}>{detailOpen.type}</span>}
@@ -1975,7 +2031,7 @@ export default function App(){
   const loadAll=async()=>{
     setLoading(true);
     try{
-      const [npcs,sessions,factions,locations,timeline,map_pins,map_config,bestiary,playersRes]=await Promise.all([
+      const [npcs,sessions,factions,locations,timeline,map_pins,map_config,playersRes,bestiary]=await Promise.all([
         supabase.from("npcs").select("*").order("created_at",{ascending:false}),
         supabase.from("sessions").select("*").order("created_at",{ascending:false}),
         supabase.from("factions").select("*").order("created_at",{ascending:false}),
@@ -2001,10 +2057,8 @@ export default function App(){
       setData(d=>({...d,
         npc:npcs.data||[],sessioni:sessions.data||[],gilda:(factions.data||[]).filter(f=>f.tipo==="gilda"||(!f.tipo&&false)),
         fazioni:(factions.data||[]).filter(f=>f.tipo!=="gilda"),mondo:locations.data||[],cronologia:timeline.data||[],map_pins:map_pins.data||[],map_config:map_config.data?.[0]||null,
-        bestiario:bestiary.data||[],
       }));
-      console.log("BESTIARY LOADED:", bestiary.data?.length, bestiary.error);
-    }catch(e){console.error('LOADALLERROR:',e);}
+    }catch(e){console.error(e);}
     setLoading(false);
   };
 
