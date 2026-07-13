@@ -2056,7 +2056,7 @@ export default function App(){
         supabase.from("map_config").select("*").order("id"),
         supabase.from("player_characters").select("*").order("name"),
       ]);
-      const bestiary = await supabase.from("bestiary").select("id,name,type,challenge_rating,hp,description,attacks,img_url,unlocked").order("name");
+      const bestiary = await supabase.from("bestiary").select("*").order("name");
       const parsed=(playersRes.data||[]).map(p=>{
         if(typeof p.attacks==="string")try{p.attacks=JSON.parse(p.attacks);}catch(e){p.attacks=[];}
         if(!Array.isArray(p.attacks))p.attacks=[];
