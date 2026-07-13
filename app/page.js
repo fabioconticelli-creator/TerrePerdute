@@ -357,16 +357,26 @@ function PlayerView({user, onLogout}){
             </div>
           ))}
         </div>;
-      case "gilda": return !campData.gilda.length?<EmptyState msg="Nessuna gilda ancora"/>:
-        <div>{campData.gilda.map((g,i)=>(
-          <div key={g.id||i} style={{background:C.bg2,border:`1px solid ${C.border}`,borderLeft:`3px solid ${C.gold}`,borderRadius:12,padding:"14px 16px",marginBottom:10}}>
-            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
-              <div style={{width:44,height:44,background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{g.icon||"🏴"}</div>
-              <div><div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{g.name}</div></div>
-            </div>
-            {g.description&&<div style={{fontSize:13,color:C.textDim,fontStyle:"italic",lineHeight:1.55}}>{g.description}</div>}
-          </div>
-        ))}</div>;
+ case "gilda":{
+  const gradoOrdP={"Adamantio":5,"Platino":4,"Oro":3,"Argento":2,"Ferro":1};
+  const gradoColorP={"Ferro":"#a0522d","Argento":"#c0c0c0","Oro":"#d4a017","Platino":"#e5e4e2","Adamantio":"#b9f2ff"};
+  const sortedG=[...campData.gilda].sort((a,b)=>(gradoOrdP[b.grado]||0)-(gradoOrdP[a.grado]||0));
+  return !campData.gilda.length?<EmptyState msg="Nessuna gilda ancora"/>:
+  <div>{sortedG.map((g,i)=>(
+    <div key={g.id||i} style={{background:"#0b1120",border:"1px solid #1a2a42",borderLeft:"3px solid #d4a017",borderRadius:12,overflow:"hidden",marginBottom:10}}>
+      {g.img_url&&<img src={g.img_url} alt={g.name} style={{width:"100%",maxHeight:240,objectFit:"contain",background:"#101827",display:"block"}}/>}
+      <div style={{padding:"14px 16px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:6}}>
+          <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:"#e8e4d0"}}>{g.name}</div>
+          {g.grado&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:5,background:"rgba(0,0,0,.5)",color:gradoColorP[g.grado]||"#8a8070",border:`1px solid ${gradoColorP[g.grado]||"#1e3250"}`}}>{g.grado}</span>}
+        </div>
+        {g.sede&&<div style={{fontSize:12,color:"#8a8070",marginBottom:6}}>📍 {g.sede}</div>}
+        {g.description&&<div style={{fontSize:13,color:"#8a8070",fontStyle:"italic",lineHeight:1.55,marginBottom:8}}>{g.description}</div>}
+        {g.influence!=null&&<><div style={{height:3,background:"#101827",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${g.influence||0}%`,background:"linear-gradient(90deg,#7a5c00,#d4a017)"}}/></div><div style={{fontSize:10,color:"#3a3828",marginTop:3}}>Fama: {g.influence||0}%</div></>}
+      </div>
+    </div>
+  ))}</div>;
+}
       case "fazioni": return !campData.fazioni.length?<EmptyState msg="Nessuna fazione ancora"/>:
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {campData.fazioni.map((f,i)=>(
