@@ -2030,7 +2030,7 @@ export default function App(){
   const loadAll=async()=>{
     setLoading(true);
     try{
-      const [npcs,sessions,factions,locations,timeline,map_pins,map_config,bestiary,playersRes]=await Promise.all([
+      const [npcs,sessions,factions,locations,timeline,map_pins,map_config,playersRes]=await Promise.all([
         supabase.from("npcs").select("*").order("created_at",{ascending:false}),
         supabase.from("sessions").select("*").order("created_at",{ascending:false}),
         supabase.from("factions").select("*").order("created_at",{ascending:false}),
@@ -2038,9 +2038,9 @@ export default function App(){
         supabase.from("timeline").select("*").order("created_at",{ascending:false}),
         supabase.from("map_pins").select("*").order("created_at",{ascending:false}),
         supabase.from("map_config").select("*").order("id"),
-        supabase.from("bestiary").select("*").order("name"),
         supabase.from("player_characters").select("*").order("name"),
       ]);
+      const bestiary = await supabase.from("bestiary").select("id,name,type,challenge_rating,hp,description,attacks,img_url,unlocked").order("name");
       const parsed=(playersRes.data||[]).map(p=>{
         if(typeof p.attacks==="string")try{p.attacks=JSON.parse(p.attacks);}catch(e){p.attacks=[];}
         if(!Array.isArray(p.attacks))p.attacks=[];
