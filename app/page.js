@@ -208,7 +208,7 @@ function PlayerView({user, onLogout}){
   const charTabs = ["scheda","inventario","famigli","note sessione"];
 
   const load = async () => {
-    const [charRes, invRes, notesRes, npcs, sessions, factions, locations, timeline, map_pins, map_config] = await Promise.all([
+    const [charRes, invRes, notesRes, npcs, sessions, factions, locations, timeline, map_pins, map_config, bestiary] = await Promise.all([
       supabase.from("player_characters").select("*").eq("player_id", user.userId).maybeSingle(),
       supabase.from("player_inventory").select("*").eq("player_id", user.userId).order("created_at"),
       supabase.from("player_session_notes").select("*").eq("player_id", user.userId).order("created_at",{ascending:false}),
@@ -219,6 +219,7 @@ function PlayerView({user, onLogout}){
       supabase.from("timeline").select("*").order("created_at",{ascending:false}),
       supabase.from("map_pins").select("*").order("created_at",{ascending:false}),
       supabase.from("map_config").select("*").order("id"),
+        supabase.from("bestiary").select("*").order("name"),
     ]);
     if(charRes.data){
       const c = charRes.data;
@@ -235,6 +236,7 @@ function PlayerView({user, onLogout}){
       sessioni:sessions.data||[], npc:npcs.data||[], gilda:factions.data||[],
       fazioni:factions.data||[], mondo:locations.data||[], cronologia:timeline.data||[],
       map_pins:map_pins.data||[], map_config:map_config.data?.[0]||null,
+      bestiario:bestiary.data||[],
     });
     const playersRes = await supabase.from("player_characters").select("*").order("name");
     const parsed = (playersRes.data||[]).map(p=>{
@@ -325,7 +327,7 @@ function PlayerView({user, onLogout}){
     {v:"mappa",icon:"🗺️",label:"Mappa"},
     {v:"fazioni",icon:"⚔️",label:"Fazioni"},
     {v:"mondo",icon:"🌍",label:"Fogli del Mondo"},
-    {v:"cronologia",icon:"⏳",label:"Cronologia"},
+    {v:"cronologia",icon:"⏳",label:"Cronologia"},{v:"bestiario",icon:"🐉",label:"Bestiario"},
   ];
   const partyNavItems=[
     {v:"bastioni",icon:"⚓",label:"Bastioni"},
@@ -1387,6 +1389,280 @@ function GenericModal({title,fields,vals,onClose,onSave,saving,onChange,hasImage
   </Modal>;
 }
 
+// ── BESTIARY VIEW ──
+function BestiaryView({isAuth, data, onUpdate}){
+  const [search,setSearch]=useState("");
+  const [modal,setModal]=useState(null);
+  const [vals,setVals]=useState({});
+  const [imgFile,setImgFile]=useState(null);
+  const [imgPreview,setImgPreview]=useState("");
+  const [saving,setSaving]=useState(false);
+  const [detailOpen,setDetailOpen]=useState(null);
+
+  const TYPES=["Bestia","Umanoide","Non morto","Demone","Drago","Costrutto","Fata","Gigante","Melma","Pianta","Aberrazione","Elementale","Celeste","Mostruosità"];
+  const CR=["0","1/8","1/4","1/2","1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","23","24","25","26","27","28","29","30"];
+
+  const filtered=(data||[]).filter(c=>c.name.toLowerCase().includes(search.toLowerCase()));
+
+  const save=async()=>{
+    setSaving(true);
+    try{
+      let imgUrl=vals.img_url||"";
+      if(imgFile){
+        const ext=imgFile.name.split(".").pop();
+        const path=`bestiary/${Date.now()}.${ext}`;
+        const {error:upErr}=await supabase.storage.from("npc-images").upload(path,imgFile,{upsert:true});
+        if(!upErr){const {data:u}=supabase.storage.from("npc-images").getPublicUrl(path);imgUrl=u.publicUrl;}
+      }
+      const obj={...vals,img_url:imgUrl};
+      delete obj.id; delete obj.created_at;
+      if(modal?.id){await supabase.from("bestiary").update(obj).eq("id",modal.id);}
+      else{await supabase.from("bestiary").insert(obj);}
+      setModal(null);setImgFile(null);setImgPreview("");onUpdate();
+    }catch(e){alert("Errore: "+e.message);}
+    setSaving(false);
+  };
+
+  const del=async(id)=>{if(!window.confirm("Eliminare?"))return;await supabase.from("bestiary").delete().eq("id",id);onUpdate();};
+
+  const inp={width:"100%",background:C.bg,border:`1px solid ${C.border2}`,borderRadius:8,color:C.text,fontFamily:"inherit",fontSize:14,padding:"8px 12px",outline:"none",marginTop:4,boxSizing:"border-box"};
+  const lbl={display:"block",fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim,marginBottom:2};
+
+  const crColor=(cr)=>{
+    const n=parseFloat(cr)||0;
+    if(n<=1)return C.green;
+    if(n<=5)return C.yellow;
+    if(n<=10)return "#fb923c";
+    return "#f87171";
+  };
+
+  return <div>
+    {/* Search bar */}
+    <div style={{position:"relative",marginBottom:16}}>
+      <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Cerca nel bestiario..." style={{...inp,marginTop:0,paddingLeft:14,fontSize:15}}/>
+    </div>
+
+    {/* Add button */}
+    {isAuth&&<div style={{marginBottom:12}}>
+      <Btn primary onClick={()=>{setVals({name:"",type:"Bestia",challenge_rating:"1",hp:"",description:"",attacks:"",img_url:"",unlocked:false});setImgPreview("");setImgFile(null);setModal({});}}>+ Aggiungi Creatura</Btn>
+    </div>}
+
+    {/* List */}
+    {filtered.length===0?<EmptyState msg="Nessuna creatura nel bestiario"/>:
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {filtered.map((c,i)=>(
+          <div key={c.id||i} onClick={()=>setDetailOpen(c)} style={{display:"flex",alignItems:"center",gap:12,background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",cursor:"pointer"}}>
+            <div style={{width:52,height:52,borderRadius:10,background:C.bg3,border:`1px solid ${C.border2}`,flexShrink:0,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>
+              {c.img_url?<img src={c.img_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:"🐉"}
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{c.name}</div>
+              <div style={{fontSize:11,color:C.textDim,marginTop:2}}>{c.type}</div>
+            </div>
+            <div style={{textAlign:"right",flexShrink:0}}>
+              <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:C.textMuted}}>GS</div>
+              <div style={{fontFamily:"'Cinzel',serif",fontSize:16,fontWeight:700,color:crColor(c.challenge_rating)}}>{c.challenge_rating||"—"}</div>
+            </div>
+            {isAuth&&<div onClick={e=>{e.stopPropagation();}} style={{display:"flex",flexDirection:"column",gap:4,marginLeft:4}}>
+              <Btn onClick={()=>{setVals({...c});setImgPreview(c.img_url||"");setImgFile(null);setModal(c);}}>✏</Btn>
+              <Btn onClick={()=>del(c.id)}>✕</Btn>
+            </div>}
+          </div>
+        ))}
+      </div>}
+
+    {/* Detail panel */}
+    {detailOpen&&<div onClick={()=>setDetailOpen(null)} style={{position:"fixed",inset:0,zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+      <div onClick={e=>e.stopPropagation()} style={{position:"absolute",inset:0,background:"rgba(0,0,0,.7)",backdropFilter:"blur(4px)"}}/>
+      <div style={{position:"relative",background:C.bg2,borderRadius:"20px 20px 0 0",border:`1px solid ${C.border2}`,width:"100%",maxWidth:640,maxHeight:"92vh",overflowY:"auto"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 20px 12px"}}>
+          <span style={{fontFamily:"'Cinzel',serif",fontSize:20,fontWeight:700,color:C.gold}}>{detailOpen.name}</span>
+          <button onClick={()=>setDetailOpen(null)} style={{background:"none",border:"none",fontSize:22,color:C.textDim,cursor:"pointer"}}>✕</button>
+        </div>
+        {detailOpen.img_url&&<div style={{padding:"0 20px 16px"}}>
+          <img src={detailOpen.img_url} style={{width:"100%",maxHeight:300,objectFit:"contain",background:C.bg3,borderRadius:12,border:`1px solid ${C.border2}`,display:"block"}}/>
+        </div>}
+        <div style={{padding:"0 20px 32px"}}>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
+            {detailOpen.type&&<span style={{fontSize:11,fontWeight:600,padding:"3px 10px",border:`1px solid ${C.border2}`,borderRadius:6,color:C.textDim}}>{detailOpen.type}</span>}
+            {detailOpen.challenge_rating&&<span style={{fontSize:11,fontWeight:700,padding:"3px 10px",border:`1px solid ${crColor(detailOpen.challenge_rating)}`,borderRadius:6,color:crColor(detailOpen.challenge_rating)}}>GS {detailOpen.challenge_rating}</span>}
+            {detailOpen.hp&&<span style={{fontSize:11,fontWeight:600,padding:"3px 10px",border:`1px solid #f87171`,borderRadius:6,color:"#f87171"}}>❤️ {detailOpen.hp} PF</span>}
+          </div>
+          {detailOpen.description&&<div style={{fontSize:15,color:C.text,lineHeight:1.75,marginBottom:12}}>{detailOpen.description}</div>}
+          {detailOpen.attacks&&<div style={{marginTop:8}}>
+            <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:6}}>Attacchi</div>
+            <div style={{fontSize:14,color:C.textDim,lineHeight:1.65}}>{detailOpen.attacks}</div>
+          </div>}
+        </div>
+      </div>
+    </div>}
+
+    {/* Edit/Add Modal */}
+    {modal!==null&&<div onClick={()=>setModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.88)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,maxWidth:500,width:"92%",maxHeight:"88vh",overflowY:"auto",padding:20,boxShadow:`0 0 40px ${C.goldGlow}`}}>
+        <div style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.gold,marginBottom:16}}>{modal?.id?"Modifica Creatura":"Nuova Creatura"}</div>
+        {/* Image */}
+        <div style={{marginBottom:13}}>
+          <label style={lbl}>Immagine</label>
+          <div style={{marginTop:6,display:"flex",flexDirection:"column",gap:6}}>
+            {imgPreview?<img src={imgPreview} style={{width:"100%",maxHeight:200,objectFit:"contain",background:C.bg3,borderRadius:10,border:`1px solid ${C.border2}`}}/>
+              :<div style={{height:80,background:C.bg3,borderRadius:10,border:`2px dashed ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32}}>🐉</div>}
+            <label style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:"7px 14px",cursor:"pointer",fontSize:12,color:C.textDim,textAlign:"center"}}>
+              📷 Scegli immagine
+              <input type="file" accept="image/*" onChange={e=>{const f=e.target.files[0];if(f){setImgFile(f);setImgPreview(URL.createObjectURL(f));}}} style={{display:"none"}}/>
+            </label>
+          </div>
+        </div>
+        {/* Name */}
+        <div style={{marginBottom:13}}><label style={lbl}>Nome</label><input value={vals.name||""} onChange={e=>setVals(v=>({...v,name:e.target.value}))} placeholder="es. Orsogufo" style={inp}/></div>
+        {/* Type */}
+        <div style={{marginBottom:13}}>
+          <label style={lbl}>Tipo</label>
+          <select value={vals.type||"Bestia"} onChange={e=>setVals(v=>({...v,type:e.target.value}))} style={{...inp,cursor:"pointer"}}>
+            {TYPES.map(t=><option key={t} value={t} style={{background:C.bg2}}>{t}</option>)}
+          </select>
+        </div>
+        {/* CR & HP */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:13}}>
+          <div>
+            <label style={lbl}>Grado di Sfida</label>
+            <select value={vals.challenge_rating||"1"} onChange={e=>setVals(v=>({...v,challenge_rating:e.target.value}))} style={{...inp,cursor:"pointer"}}>
+              {CR.map(r=><option key={r} value={r} style={{background:C.bg2}}>GS {r}</option>)}
+            </select>
+          </div>
+          <div><label style={lbl}>Punti Ferita</label><input value={vals.hp||""} onChange={e=>setVals(v=>({...v,hp:e.target.value}))} placeholder="es. 95 (10d10+40)" style={inp}/></div>
+        </div>
+        {/* Description */}
+        <div style={{marginBottom:13}}><label style={lbl}>Descrizione</label><textarea value={vals.description||""} onChange={e=>setVals(v=>({...v,description:e.target.value}))} placeholder="Descrivi la creatura..." style={{...inp,minHeight:80,resize:"vertical"}}/></div>
+        {/* Attacks */}
+        <div style={{marginBottom:13}}><label style={lbl}>Attacchi</label><textarea value={vals.attacks||""} onChange={e=>setVals(v=>({...v,attacks:e.target.value}))} placeholder="es. Artigli: +7 colpire, 2d6+4 taglienti..." style={{...inp,minHeight:60,resize:"vertical"}}/></div>
+        {/* Buttons */}
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+          <Btn onClick={()=>setModal(null)}>Annulla</Btn>
+          <Btn primary onClick={save} disabled={saving}>{saving?"Salvo...":"Salva"}</Btn>
+        </div>
+      </div>
+    </div>}
+  </div>;
+}
+
+
+// ── PLAYER BESTIARY VIEW ──
+function PlayerBestiaryView({data, userId, onUpdate}){
+  const [search,setSearch]=useState("");
+  const [detailOpen,setDetailOpen]=useState(null);
+  const [unlockSearch,setUnlockSearch]=useState("");
+  const [unlockResults,setUnlockResults]=useState([]);
+  const [searching,setSearching]=useState(false);
+  const [unlockMode,setUnlockMode]=useState(false);
+
+  const filtered=(data||[]).filter(c=>c.name.toLowerCase().includes(search.toLowerCase()));
+
+  const searchCreature=async()=>{
+    if(!unlockSearch.trim())return;
+    setSearching(true);
+    const {data:res}=await supabase.from("bestiary").select("*").ilike("name",`%${unlockSearch}%`);
+    setUnlockResults(res||[]);
+    setSearching(false);
+  };
+
+  const unlock=async(creature)=>{
+    await supabase.from("bestiary").update({unlocked:true}).eq("id",creature.id);
+    setUnlockResults(r=>r.filter(x=>x.id!==creature.id));
+    onUpdate();
+  };
+
+  const crColor=(cr)=>{
+    const n=parseFloat(cr)||0;
+    if(n<=1)return C.green;
+    if(n<=5)return C.yellow;
+    if(n<=10)return "#fb923c";
+    return "#f87171";
+  };
+
+  const inp={width:"100%",background:C.bg,border:`1px solid ${C.border2}`,borderRadius:8,color:C.text,fontFamily:"inherit",fontSize:14,padding:"8px 12px",outline:"none",marginTop:4,boxSizing:"border-box"};
+
+  return <div>
+    <div style={{display:"flex",gap:8,marginBottom:16}}>
+      <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Cerca nel bestiario..." style={{...inp,marginTop:0,flex:1}}/>
+      <Btn onClick={()=>setUnlockMode(m=>!m)} primary={unlockMode}>🔓 Sblocca</Btn>
+    </div>
+
+    {/* Unlock mode */}
+    {unlockMode&&<Card style={{marginBottom:16}}>
+      <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:10}}>Sblocca Creatura</div>
+      <div style={{display:"flex",gap:8,marginBottom:10}}>
+        <input value={unlockSearch} onChange={e=>setUnlockSearch(e.target.value)} onKeyDown={e=>e.key==="Enter"&&searchCreature()} placeholder="Cerca nome creatura..." style={{...inp,marginTop:0,flex:1}}/>
+        <Btn primary onClick={searchCreature} disabled={searching}>{searching?"...":"Cerca"}</Btn>
+      </div>
+      {unlockResults.length>0&&<div style={{display:"flex",flexDirection:"column",gap:6}}>
+        {unlockResults.map((c,i)=>(
+          <div key={c.id||i} style={{display:"flex",alignItems:"center",gap:10,background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 12px"}}>
+            <div style={{width:36,height:36,borderRadius:8,background:C.bg,border:`1px solid ${C.border2}`,flexShrink:0,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>
+              {c.img_url?<img src={c.img_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:"🐉"}
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:13,fontWeight:600,color:C.text}}>{c.name}</div>
+              <div style={{fontSize:11,color:C.textDim}}>{c.type} · GS {c.challenge_rating}</div>
+            </div>
+            {c.unlocked
+              ?<span style={{fontSize:11,color:C.green}}>✓ Già sbloccato</span>
+              :<Btn primary onClick={()=>unlock(c)}>Sblocca</Btn>}
+          </div>
+        ))}
+      </div>}
+      {unlockResults.length===0&&unlockSearch&&!searching&&<div style={{textAlign:"center",padding:"20px",color:C.textMuted,fontSize:13}}>Nessuna creatura trovata</div>}
+    </Card>}
+
+    {/* Unlocked list */}
+    {filtered.length===0?<EmptyState msg="Nessuna creatura sbloccata — usa 🔓 Sblocca per aggiungerne!"/>:
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {filtered.map((c,i)=>(
+          <div key={c.id||i} onClick={()=>setDetailOpen(c)} style={{display:"flex",alignItems:"center",gap:12,background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",cursor:"pointer"}}>
+            <div style={{width:52,height:52,borderRadius:10,background:C.bg3,border:`1px solid ${C.border2}`,flexShrink:0,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>
+              {c.img_url?<img src={c.img_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:"🐉"}
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{c.name}</div>
+              <div style={{fontSize:11,color:C.textDim,marginTop:2}}>{c.type}</div>
+            </div>
+            <div style={{textAlign:"right",flexShrink:0}}>
+              <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:C.textMuted}}>GS</div>
+              <div style={{fontFamily:"'Cinzel',serif",fontSize:16,fontWeight:700,color:crColor(c.challenge_rating)}}>{c.challenge_rating||"—"}</div>
+            </div>
+          </div>
+        ))}
+      </div>}
+
+    {/* Detail panel */}
+    {detailOpen&&<div onClick={()=>setDetailOpen(null)} style={{position:"fixed",inset:0,zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+      <div onClick={e=>e.stopPropagation()} style={{position:"absolute",inset:0,background:"rgba(0,0,0,.7)",backdropFilter:"blur(4px)"}}/>
+      <div style={{position:"relative",background:C.bg2,borderRadius:"20px 20px 0 0",border:`1px solid ${C.border2}`,width:"100%",maxWidth:640,maxHeight:"92vh",overflowY:"auto"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 20px 12px"}}>
+          <span style={{fontFamily:"'Cinzel',serif",fontSize:20,fontWeight:700,color:C.gold}}>{detailOpen.name}</span>
+          <button onClick={()=>setDetailOpen(null)} style={{background:"none",border:"none",fontSize:22,color:C.textDim,cursor:"pointer"}}>✕</button>
+        </div>
+        {detailOpen.img_url&&<div style={{padding:"0 20px 16px"}}>
+          <img src={detailOpen.img_url} style={{width:"100%",maxHeight:300,objectFit:"contain",background:C.bg3,borderRadius:12,border:`1px solid ${C.border2}`,display:"block"}}/>
+        </div>}
+        <div style={{padding:"0 20px 32px"}}>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
+            {detailOpen.type&&<span style={{fontSize:11,fontWeight:600,padding:"3px 10px",border:`1px solid ${C.border2}`,borderRadius:6,color:C.textDim}}>{detailOpen.type}</span>}
+            {detailOpen.challenge_rating&&<span style={{fontSize:11,fontWeight:700,padding:"3px 10px",border:`1px solid ${crColor(detailOpen.challenge_rating)}`,borderRadius:6,color:crColor(detailOpen.challenge_rating)}}>GS {detailOpen.challenge_rating}</span>}
+            {detailOpen.hp&&<span style={{fontSize:11,fontWeight:600,padding:"3px 10px",border:"1px solid #f87171",borderRadius:6,color:"#f87171"}}>❤️ {detailOpen.hp} PF</span>}
+          </div>
+          {detailOpen.description&&<div style={{fontSize:15,color:C.text,lineHeight:1.75,marginBottom:12}}>{detailOpen.description}</div>}
+          {detailOpen.attacks&&<div style={{marginTop:8}}>
+            <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:6}}>Attacchi</div>
+            <div style={{fontSize:14,color:C.textDim,lineHeight:1.65}}>{detailOpen.attacks}</div>
+          </div>}
+        </div>
+      </div>
+    </div>}
+  </div>;
+}
+
+
 // ── BASTIONI VIEW ──
 function BastioniView({isAuth, onUpdate}){
   const [nave, setNave] = useState(null);
@@ -1663,7 +1939,7 @@ export default function App(){
     }catch(e){return null;}
   });
   const [authChecked,setAuthChecked]=useState(false);
-  const [data,setData]=useState({sessioni:[],npc:[],gilda:[],fazioni:[],mondo:[],cronologia:[],map_pins:[],map_config:null});
+  const [data,setData]=useState({sessioni:[],npc:[],gilda:[],fazioni:[],mondo:[],cronologia:[],map_pins:[],map_config:null,bestiario:[]});
   const [loading,setLoading]=useState(true);
   const [view,setView]=useState("sessioni");
   const [sidebarOpen,setSidebarOpen]=useState(false);
@@ -1684,7 +1960,7 @@ export default function App(){
   const [selectedPlayer,setSelectedPlayer]=useState(null);
 
   const isAuth = user?.role==="dm";
-  const TITLES={sessioni:"Sessioni",npc:"NPC",mappa:"Mappa",gilda:"Gilda",fazioni:"Fazioni",mondo:"Fogli del Mondo",cronologia:"Cronologia"};
+  const TITLES={sessioni:"Sessioni",npc:"NPC",mappa:"Mappa",gilda:"Gilda",fazioni:"Fazioni",mondo:"Fogli del Mondo",cronologia:"Cronologia",bestiario:"Bestiario"};
 
   const handleLogin = (u) => {
     setUser(u);
@@ -1699,7 +1975,7 @@ export default function App(){
   const loadAll=async()=>{
     setLoading(true);
     try{
-      const [npcs,sessions,factions,locations,timeline,map_pins,map_config,playersRes]=await Promise.all([
+      const [npcs,sessions,factions,locations,timeline,map_pins,map_config,playersRes,bestiary]=await Promise.all([
         supabase.from("npcs").select("*").order("created_at",{ascending:false}),
         supabase.from("sessions").select("*").order("created_at",{ascending:false}),
         supabase.from("factions").select("*").order("created_at",{ascending:false}),
@@ -1707,6 +1983,7 @@ export default function App(){
         supabase.from("timeline").select("*").order("created_at",{ascending:false}),
         supabase.from("map_pins").select("*").order("created_at",{ascending:false}),
         supabase.from("map_config").select("*").order("id"),
+        supabase.from("bestiary").select("*").order("name"),
         supabase.from("player_characters").select("*").order("name"),
       ]);
       const parsed=(playersRes.data||[]).map(p=>{
@@ -2002,6 +2279,8 @@ export default function App(){
         </div>;
       }
 
+      case "bestiario": return <BestiaryView isAuth={isAuth} data={data.bestiario} onUpdate={loadAll}/>;
+
       case "bastioni": return <BastioniView isAuth={isAuth} onUpdate={loadAll}/>;
 
       default:
@@ -2016,7 +2295,7 @@ export default function App(){
     {v:"sessioni",icon:"📜",label:"Sessioni"},{v:"gilda",icon:"🏴",label:"Gilda"},
     {v:"npc",icon:"👤",label:"NPC"},{v:"mappa",icon:"🗺️",label:"Mappa"},
     {v:"fazioni",icon:"⚔️",label:"Fazioni"},{v:"mondo",icon:"🌍",label:"Fogli del Mondo"},
-    {v:"cronologia",icon:"⏳",label:"Cronologia"},
+    {v:"cronologia",icon:"⏳",label:"Cronologia"},{v:"bestiario",icon:"🐉",label:"Bestiario"},
   ];
 
   return <div style={{display:"flex",height:"100vh",overflow:"hidden",background:C.bg,color:C.text,fontFamily:"'Inter',sans-serif"}}>
