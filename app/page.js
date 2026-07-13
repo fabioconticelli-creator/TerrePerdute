@@ -2031,7 +2031,7 @@ export default function App(){
   const loadAll=async()=>{
     setLoading(true);
     try{
-      const [npcs,sessions,factions,locations,timeline,map_pins,map_config,playersRes,bestiary]=await Promise.all([
+      const [npcs,sessions,factions,locations,timeline,map_pins,map_config,bestiary,playersRes]=await Promise.all([
         supabase.from("npcs").select("*").order("created_at",{ascending:false}),
         supabase.from("sessions").select("*").order("created_at",{ascending:false}),
         supabase.from("factions").select("*").order("created_at",{ascending:false}),
