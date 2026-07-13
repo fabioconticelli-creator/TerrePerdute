@@ -247,7 +247,7 @@ function PlayerView({user, onLogout}){
     setLoading(false);
   };
 
-  useEffect(()=>{ load(); const i=setInterval(load,30000); return()=>clearInterval(i); },[user.userId]);
+  useEffect(()=>{ load(); },[user.userId]);
 
   const saveChar = async () => {
     setSaving(true);
@@ -1538,24 +1538,16 @@ function BestiaryView({isAuth, data, onUpdate}){
             :<div style={{height:80,background:C.bg3,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:48}}>🐉</div>}
         </div>
         <div style={{padding:"0 20px 32px"}}>
-          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
             {detailOpen.type&&<span style={{fontSize:11,fontWeight:600,padding:"3px 10px",border:`1px solid ${C.border2}`,borderRadius:6,color:C.textDim}}>{detailOpen.type}</span>}
             {detailOpen.challenge_rating&&<span style={{fontSize:11,fontWeight:700,padding:"3px 10px",border:`1px solid ${crColor(detailOpen.challenge_rating)}`,borderRadius:6,color:crColor(detailOpen.challenge_rating)}}>GS {detailOpen.challenge_rating}</span>}
+            {detailOpen.hp&&<span style={{fontSize:11,fontWeight:600,padding:"3px 10px",border:`1px solid #f87171`,borderRadius:6,color:"#f87171"}}>❤️ {detailOpen.hp} PF</span>}
           </div>
-          {detailOpen.lore&&<div style={{fontSize:15,color:C.text,lineHeight:1.8,marginBottom:16,fontStyle:"italic"}}>{detailOpen.lore}</div>}
-          {detailOpen.habitat&&<div style={{marginBottom:14}}>
-            <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:6}}>🗺️ Habitat</div>
-            <div style={{fontSize:14,color:C.textDim,lineHeight:1.65}}>{detailOpen.habitat}</div>
+          {detailOpen.description&&<div style={{fontSize:15,color:C.text,lineHeight:1.75,marginBottom:12}}>{detailOpen.description}</div>}
+          {detailOpen.attacks&&<div style={{marginTop:8}}>
+            <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:6}}>Attacchi</div>
+            <div style={{fontSize:14,color:C.textDim,lineHeight:1.65}}>{detailOpen.attacks}</div>
           </div>}
-          {detailOpen.comportamento&&<div style={{marginBottom:14}}>
-            <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:6}}>⚔️ Comportamento</div>
-            <div style={{fontSize:14,color:C.textDim,lineHeight:1.65}}>{detailOpen.comportamento}</div>
-          </div>}
-          {detailOpen.curiosita&&<div style={{marginBottom:14}}>
-            <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:6}}>✨ Curiosità</div>
-            <div style={{fontSize:14,color:C.textDim,lineHeight:1.65}}>{detailOpen.curiosita}</div>
-          </div>}
-          {!detailOpen.lore&&detailOpen.description&&<div style={{fontSize:15,color:C.text,lineHeight:1.75,marginBottom:12}}>{detailOpen.description}</div>}
         </div>
       </div>
     </div>}
@@ -1709,24 +1701,16 @@ function PlayerBestiaryView({data, userId, onUpdate}){
           <img src={detailOpen.img_url} style={{width:"100%",maxHeight:300,objectFit:"contain",background:C.bg3,borderRadius:12,border:`1px solid ${C.border2}`,display:"block"}}/>
         </div>}
         <div style={{padding:"0 20px 32px"}}>
-          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
             {detailOpen.type&&<span style={{fontSize:11,fontWeight:600,padding:"3px 10px",border:`1px solid ${C.border2}`,borderRadius:6,color:C.textDim}}>{detailOpen.type}</span>}
             {detailOpen.challenge_rating&&<span style={{fontSize:11,fontWeight:700,padding:"3px 10px",border:`1px solid ${crColor(detailOpen.challenge_rating)}`,borderRadius:6,color:crColor(detailOpen.challenge_rating)}}>GS {detailOpen.challenge_rating}</span>}
+            {detailOpen.hp&&<span style={{fontSize:11,fontWeight:600,padding:"3px 10px",border:"1px solid #f87171",borderRadius:6,color:"#f87171"}}>❤️ {detailOpen.hp} PF</span>}
           </div>
-          {detailOpen.lore&&<div style={{fontSize:15,color:C.text,lineHeight:1.8,marginBottom:16,fontStyle:"italic"}}>{detailOpen.lore}</div>}
-          {detailOpen.habitat&&<div style={{marginBottom:14}}>
-            <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:6}}>🗺️ Habitat</div>
-            <div style={{fontSize:14,color:C.textDim,lineHeight:1.65}}>{detailOpen.habitat}</div>
+          {detailOpen.description&&<div style={{fontSize:15,color:C.text,lineHeight:1.75,marginBottom:12}}>{detailOpen.description}</div>}
+          {detailOpen.attacks&&<div style={{marginTop:8}}>
+            <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:6}}>Attacchi</div>
+            <div style={{fontSize:14,color:C.textDim,lineHeight:1.65}}>{detailOpen.attacks}</div>
           </div>}
-          {detailOpen.comportamento&&<div style={{marginBottom:14}}>
-            <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:6}}>⚔️ Comportamento</div>
-            <div style={{fontSize:14,color:C.textDim,lineHeight:1.65}}>{detailOpen.comportamento}</div>
-          </div>}
-          {detailOpen.curiosita&&<div style={{marginBottom:14}}>
-            <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:6}}>✨ Curiosità</div>
-            <div style={{fontSize:14,color:C.textDim,lineHeight:1.65}}>{detailOpen.curiosita}</div>
-          </div>}
-          {!detailOpen.lore&&detailOpen.description&&<div style={{fontSize:15,color:C.text,lineHeight:1.75,marginBottom:12}}>{detailOpen.description}</div>}
         </div>
       </div>
     </div>}
@@ -2056,7 +2040,7 @@ export default function App(){
         supabase.from("map_config").select("*").order("id"),
         supabase.from("player_characters").select("*").order("name"),
       ]);
-      const bestiary = await supabase.from("bestiary").select("*").order("name");
+      const bestiary = await supabase.from("bestiary").select("id,name,type,challenge_rating,hp,description,attacks,img_url,unlocked").order("name");
       const parsed=(playersRes.data||[]).map(p=>{
         if(typeof p.attacks==="string")try{p.attacks=JSON.parse(p.attacks);}catch(e){p.attacks=[];}
         if(!Array.isArray(p.attacks))p.attacks=[];
@@ -2072,7 +2056,6 @@ export default function App(){
       setData(d=>({...d,
         npc:npcs.data||[],sessioni:sessions.data||[],gilda:(factions.data||[]).filter(f=>f.tipo==="gilda"||(!f.tipo&&false)),
         fazioni:(factions.data||[]).filter(f=>f.tipo!=="gilda"),mondo:locations.data||[],cronologia:timeline.data||[],map_pins:map_pins.data||[],map_config:map_config.data?.[0]||null,
-        bestiario:bestiary.data||[],
       }));
     }catch(e){console.error(e);}
     setLoading(false);
@@ -2096,7 +2079,7 @@ export default function App(){
   },[]);
 
   useEffect(()=>{
-    if(user?.role==="dm"){ loadAll(); const i=setInterval(loadAll,60000); return()=>clearInterval(i); }
+    if(user?.role==="dm"){ loadAll(); }
   },[user]);
 
   if(!authChecked && !user) return <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",color:C.textDim,fontSize:14}}>Caricamento...</div>;
