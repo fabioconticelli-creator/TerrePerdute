@@ -2056,6 +2056,7 @@ export default function App(){
       setData(d=>({...d,
         npc:npcs.data||[],sessioni:sessions.data||[],gilda:(factions.data||[]).filter(f=>f.tipo==="gilda"||(!f.tipo&&false)),
         fazioni:(factions.data||[]).filter(f=>f.tipo!=="gilda"),mondo:locations.data||[],cronologia:timeline.data||[],map_pins:map_pins.data||[],map_config:map_config.data?.[0]||null,
+        bestiario:bestiary.data||[],
       }));
     }catch(e){console.error(e);}
     setLoading(false);
