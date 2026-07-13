@@ -218,7 +218,7 @@ function PlayerView({user, onLogout}){
       supabase.from("locations").select("*").order("created_at",{ascending:false}),
       supabase.from("timeline").select("*").order("created_at",{ascending:false}),
       supabase.from("map_pins").select("*").order("created_at",{ascending:false}),
-      supabase.from("map_config").select("*").limit(1),
+      supabase.from("map_config").select("*").order("id"),
     ]);
     if(charRes.data){
       const c = charRes.data;
@@ -1675,6 +1675,10 @@ export default function App(){
   const [pinModal,setPinModal]=useState(null);
   const [pinVals,setPinVals]=useState({});
   const [mapUploading,setMapUploading]=useState(false);
+  const [maps,setMaps]=useState([]);
+  const [selectedMap,setSelectedMap]=useState(null);
+  const [mapNameModal,setMapNameModal]=useState(false);
+  const [newMapName,setNewMapName]=useState("");
   const [pendingPin,setPendingPin]=useState(false);
   const [players,setPlayers]=useState([]);
   const [selectedPlayer,setSelectedPlayer]=useState(null);
@@ -1702,7 +1706,7 @@ export default function App(){
         supabase.from("locations").select("*").order("created_at",{ascending:false}),
         supabase.from("timeline").select("*").order("created_at",{ascending:false}),
         supabase.from("map_pins").select("*").order("created_at",{ascending:false}),
-        supabase.from("map_config").select("*").limit(1),
+        supabase.from("map_config").select("*").order("id"),
         supabase.from("player_characters").select("*").order("name"),
       ]);
       const parsed=(playersRes.data||[]).map(p=>{
@@ -1714,6 +1718,9 @@ export default function App(){
         return p;
       });
       setPlayers(parsed);
+      const allMaps = map_config.data||[];
+      setMaps(allMaps);
+      if(allMaps.length>0 && !selectedMap) setSelectedMap(s=>s||allMaps[0]);
       setData(d=>({...d,
         npc:npcs.data||[],sessioni:sessions.data||[],gilda:(factions.data||[]).filter(f=>f.tipo==="gilda"||(!f.tipo&&false)),
         fazioni:(factions.data||[]).filter(f=>f.tipo!=="gilda"),mondo:locations.data||[],cronologia:timeline.data||[],map_pins:map_pins.data||[],map_config:map_config.data?.[0]||null,
@@ -1916,12 +1923,24 @@ export default function App(){
 
 
       case "mappa":{
-        const mapImg=data.map_config?.map_path;
+        const curMap = selectedMap || maps[0];
+        const mapImg = curMap?.map_path;
         return <div>
+          {/* Selettore mappe */}
+          {maps.length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12,overflowX:"auto"}}>
+            {maps.map((m,i)=>(
+              <button key={m.id||i} onClick={()=>setSelectedMap(m)}
+                style={{fontSize:12,fontWeight:600,padding:"6px 14px",borderRadius:8,border:`1px solid ${selectedMap?.id===m.id?C.gold:C.border2}`,background:selectedMap?.id===m.id?`rgba(212,160,23,.15)`:"transparent",color:selectedMap?.id===m.id?C.gold:C.textDim,cursor:"pointer",whiteSpace:"nowrap"}}>
+                🗺️ {m.name||`Mappa ${i+1}`}
+              </button>
+            ))}
+            {isAuth&&<Btn onClick={()=>{setNewMapName("");setMapNameModal(true);}}>+ Nuova mappa</Btn>}
+          </div>}
+          {/* Mappa corrente */}
           <div style={{position:"relative",background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden",marginBottom:12}}>
             {mapImg?<div style={{position:"relative"}}>
                 <img src={mapImg} style={{width:"100%",display:"block",borderRadius:12,maxHeight:520,objectFit:"contain"}}/>
-                {data.map_pins.map((pin,i)=>(
+                {data.map_pins.filter(p=>!p.map_id||(curMap&&p.map_id===curMap.id)).map((pin,i)=>(
                   <div key={pin.id||i} onClick={()=>setPinModal({item:pin,view:"pin_detail"})}
                     style={{position:"absolute",left:`${pin.x_percent}%`,top:`${pin.y_percent}%`,transform:"translate(-50%,-50%)",cursor:"pointer",zIndex:10}}>
                     <div style={{width:18,height:18,borderRadius:"50%",background:pin.status==="nemico"?"#f87171":pin.status==="alleato"?"#4ade80":C.gold,border:"2px solid #fff",boxShadow:"0 0 8px rgba(0,0,0,.6)"}}/>
@@ -1941,12 +1960,12 @@ export default function App(){
               </div>
               :<div style={{height:300,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
                 <div style={{fontSize:40,opacity:.3}}>🗺️</div>
-                <div style={{fontSize:13,color:C.textMuted}}>Nessuna mappa caricata</div>
+                <div style={{fontSize:13,color:C.textMuted}}>{maps.length===0?"Nessuna mappa caricata":"Carica un'immagine per questa mappa"}</div>
               </div>}
           </div>
           {isAuth&&<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-            <label style={{background:mapImg?C.bg2:C.gold,border:mapImg?`1px solid ${C.border2}`:"none",color:mapImg?C.textDim:"#0b1120",fontWeight:600,fontSize:12,padding:"7px 14px",borderRadius:8,cursor:"pointer"}}>
-              {mapImg?"🗺️ Cambia mappa":"📷 Carica mappa"}
+            {curMap&&<label style={{background:C.bg2,border:`1px solid ${C.border2}`,color:C.textDim,fontWeight:600,fontSize:12,padding:"7px 14px",borderRadius:8,cursor:"pointer"}}>
+              {mapImg?"🗺️ Cambia immagine":"📷 Carica immagine"}
               <input type="file" accept="image/*" onChange={async e=>{
                 const f=e.target.files[0];if(!f)return;
                 setMapUploading(true);
@@ -1954,13 +1973,32 @@ export default function App(){
                 const {error:upErr}=await supabase.storage.from("map-images").upload(path,f,{upsert:true});
                 if(upErr){alert("Errore: "+upErr.message);setMapUploading(false);return;}
                 const {data:urlData}=supabase.storage.from("map-images").getPublicUrl(path);
-                await supabase.from("map_config").upsert({id:1,map_path:urlData.publicUrl});
+                await supabase.from("map_config").update({map_path:urlData.publicUrl}).eq("id",curMap.id);
                 setMapUploading(false);loadAll();
               }} style={{display:"none"}}/>
-            </label>
+            </label>}
             {mapImg&&<Btn primary onClick={()=>setPendingPin(true)}>+ Aggiungi Pin</Btn>}
+            {curMap&&maps.length>1&&isAuth&&<Btn onClick={async()=>{if(!window.confirm("Eliminare questa mappa?"))return;await supabase.from("map_config").delete().eq("id",curMap.id);setSelectedMap(null);loadAll();}}>🗑 Elimina mappa</Btn>}
           </div>}
           {mapUploading&&<div style={{fontSize:12,color:C.gold,marginTop:8}}>Caricamento in corso...</div>}
+          {/* Modal nuova mappa */}
+          {mapNameModal&&<div onClick={()=>setMapNameModal(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.88)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,maxWidth:380,width:"92%",padding:20,boxShadow:`0 0 40px ${C.goldGlow}`}}>
+              <div style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.gold,marginBottom:16}}>🗺️ Nuova Mappa</div>
+              <label style={{display:"block",fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim,marginBottom:4}}>Nome</label>
+              <input value={newMapName} onChange={e=>setNewMapName(e.target.value)} placeholder="es. Mappa del Mondo, Città di Arenmar..." style={{width:"100%",background:C.bg,border:`1px solid ${C.border2}`,borderRadius:8,color:C.text,fontFamily:"inherit",fontSize:14,padding:"8px 12px",outline:"none",boxSizing:"border-box",marginBottom:16}}/>
+              <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                <Btn onClick={()=>setMapNameModal(false)}>Annulla</Btn>
+                <Btn primary onClick={async()=>{
+                  if(!newMapName.trim())return;
+                  const {data:newMap}=await supabase.from("map_config").insert({name:newMapName.trim(),map_path:""}).select().single();
+                  setMapNameModal(false);
+                  if(newMap){setSelectedMap(newMap);}
+                  loadAll();
+                }}>Crea</Btn>
+              </div>
+            </div>
+          </div>}
         </div>;
       }
 
