@@ -4,9 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = "https://nrnikfajuzilnglvyezm.supabase.co";
 const SUPABASE_KEY = "sb_publishable_AtRqw50X9ATc76oJdK1Y6g_zz93ugbc";
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-  global: { headers: { 'Cache-Control': 'no-cache, no-store' } }
-});
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const DM_PIN = "1234";
 
@@ -327,10 +325,11 @@ function PlayerView({user, onLogout}){
     {v:"mappa",icon:"🗺️",label:"Mappa"},
     {v:"fazioni",icon:"⚔️",label:"Fazioni"},
     {v:"mondo",icon:"🌍",label:"Fogli del Mondo"},
-    {v:"cronologia",icon:"⏳",label:"Cronologia"},{v:"bestiario",icon:"🐉",label:"Bestiario"},
+    {v:"cronologia",icon:"⏳",label:"Cronologia"},
   ];
   const partyNavItems=[
     {v:"bastioni",icon:"⚓",label:"Bastioni"},
+    {v:"bestiario",icon:"🐉",label:"Bestiario Scoperto"},
   ];
 
   if(loading) return <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",color:C.textDim,fontSize:14}}>Caricamento...</div>;
@@ -2016,7 +2015,7 @@ export default function App(){
   const [selectedPlayer,setSelectedPlayer]=useState(null);
 
   const isAuth = user?.role==="dm";
-  const TITLES={sessioni:"Sessioni",npc:"NPC",mappa:"Mappa",gilda:"Gilda",fazioni:"Fazioni",mondo:"Fogli del Mondo",cronologia:"Cronologia",bestiario:"Bestiario"};
+  const TITLES={sessioni:"Sessioni",npc:"NPC",mappa:"Mappa",gilda:"Gilda",fazioni:"Fazioni",mondo:"Fogli del Mondo",cronologia:"Cronologia",bestiario:"Bestiario Scoperto"};
 
   const handleLogin = (u) => {
     setUser(u);
@@ -2351,7 +2350,7 @@ export default function App(){
     {v:"sessioni",icon:"📜",label:"Sessioni"},{v:"gilda",icon:"🏴",label:"Gilda"},
     {v:"npc",icon:"👤",label:"NPC"},{v:"mappa",icon:"🗺️",label:"Mappa"},
     {v:"fazioni",icon:"⚔️",label:"Fazioni"},{v:"mondo",icon:"🌍",label:"Fogli del Mondo"},
-    {v:"cronologia",icon:"⏳",label:"Cronologia"},{v:"bestiario",icon:"🐉",label:"Bestiario"},
+    {v:"cronologia",icon:"⏳",label:"Cronologia"},
   ];
 
   return <div style={{display:"flex",height:"100vh",overflow:"hidden",background:C.bg,color:C.text,fontFamily:"'Inter',sans-serif"}}>
@@ -2380,6 +2379,9 @@ export default function App(){
         <div style={{fontSize:10,fontWeight:600,letterSpacing:".18em",textTransform:"uppercase",color:C.textMuted,padding:"0 18px 6px"}}>Party</div>
         <div onClick={()=>nav("bastioni")} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 18px",cursor:"pointer",fontSize:13,color:view==="bastioni"?C.gold:C.textDim,background:view==="bastioni"?`rgba(212,160,23,.08)`:"transparent",borderLeft:`2px solid ${view==="bastioni"?C.gold:"transparent"}`}}>
           <span style={{fontSize:14,width:18,textAlign:"center"}}>⚓</span>Bastioni
+        </div>
+        <div onClick={()=>nav("bestiario")} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 18px",cursor:"pointer",fontSize:13,color:view==="bestiario"?C.gold:C.textDim,background:view==="bestiario"?`rgba(212,160,23,.08)`:"transparent",borderLeft:`2px solid ${view==="bestiario"?C.gold:"transparent"}`}}>
+          <span style={{fontSize:14,width:18,textAlign:"center"}}>🐉</span>Bestiario Scoperto
         </div>
       </div>
       {players.length>0&&<>
