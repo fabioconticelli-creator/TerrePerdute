@@ -486,13 +486,17 @@ function PlayerView({user, onLogout}){
                 <div style={{fontSize:12,color:C.textDim,marginTop:3}}>{[p.race,p.class,`Lv ${p.level}`].filter(Boolean).join(" · ")}</div>
               </div>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
-              {[["CA",p.ac||0],["Livello",p.level||1],["Background",p.background||"—"]].map(([l,v])=>(
-                <div key={l} style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 8px",textAlign:"center"}}>
-                  <div style={{fontSize:9,fontWeight:700,letterSpacing:".18em",textTransform:"uppercase",color:C.textDim}}>{l}</div>
-                  <div style={{fontFamily:"'Cinzel',serif",fontSize:typeof v==="number"?22:13,fontWeight:700,color:C.text,marginTop:3}}>{v}</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:8}}>
+              {[["CA",p.ac||0],["Iniziativa",fmtMod(mod(p.dex||10))],["Livello",p.level||1],["B.Comp.",`+${p.prof_bonus||2}`]].map(([l,v])=>(
+                <div key={l} style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 4px",textAlign:"center"}}>
+                  <div style={{fontSize:8,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim,marginBottom:2}}>{l}</div>
+                  <div style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:l==="Iniziativa"?(mod(p.dex||10)>=0?C.green:"#f87171"):l==="B.Comp."?C.gold:C.text}}>{v}</div>
                 </div>
               ))}
+            </div>
+            <div style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 12px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:C.textDim}}>Background</span>
+              <span style={{fontFamily:"'Cinzel',serif",fontSize:13,fontWeight:700,color:C.text}}>{p.background||"—"}</span>
             </div>
             <Card style={{marginBottom:12}}>
               <div style={{fontSize:13,color:C.textDim,marginBottom:10}}>Punti Ferita</div>
@@ -529,6 +533,34 @@ function PlayerView({user, onLogout}){
                 </div>
               ))}
             </Card>}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+              <Card>
+                <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:10,display:"flex",justifyContent:"space-between"}}>
+                  <span>Abilità</span><span style={{fontWeight:400,color:C.textMuted}}>+{p.prof_bonus||2}</span>
+                </div>
+                {ABILITA.map(a=>{
+                  const hasProf=(p.skill_proficiencies||[]).includes(a.n);
+                  const bonus=mod(p[a.s]||10)+(hasProf?(p.prof_bonus||2):0);
+                  return <div key={a.n} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 2px"}}>
+                    <div style={{width:12,height:12,borderRadius:"50%",border:`2px solid ${hasProf?C.gold:C.border2}`,background:hasProf?C.gold:"transparent",flexShrink:0}}/>
+                    <div style={{fontSize:12,fontWeight:600,color:hasProf?C.gold:C.text,width:28}}>{fmtMod(bonus)}</div>
+                    <div style={{fontSize:11,color:C.textDim,flex:1}}>{a.n}</div>
+                  </div>;
+                })}
+              </Card>
+              <Card>
+                <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:10}}>Tiri Salvezza</div>
+                {[["FOR","str"],["DES","dex"],["COS","con"],["INT","int"],["SAG","wis"],["CAR","cha"]].map(([l,k])=>{
+                  const hasProf=(p.saving_throw_proficiencies||[]).includes(k);
+                  const bonus=mod(p[k]||10)+(hasProf?(p.prof_bonus||2):0);
+                  return <div key={k} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 2px"}}>
+                    <div style={{width:12,height:12,borderRadius:"50%",border:`2px solid ${hasProf?C.gold:C.border2}`,background:hasProf?C.gold:"transparent",flexShrink:0}}/>
+                    <div style={{fontSize:12,fontWeight:600,color:hasProf?C.gold:C.text,width:28}}>{fmtMod(bonus)}</div>
+                    <div style={{fontSize:11,color:C.textDim,flex:1}}>{l}</div>
+                  </div>;
+                })}
+              </Card>
+            </div>
           </div>;
         }
         return null;
