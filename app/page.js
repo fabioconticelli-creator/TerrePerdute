@@ -206,7 +206,7 @@ function PlayerView({user, onLogout}){
   const charTabs = ["scheda","inventario","famigli","note sessione"];
 
   const load = async () => {
-    const [charRes, invRes, notesRes, npcs, sessions, factions, locations, timeline, map_pins, map_config, bestiary] = await Promise.all([
+    const [charRes, invRes, notesRes, npcs, sessions, factions, locations, timeline, map_pins, map_config, bestiary, mercatoRes2] = await Promise.all([
       supabase.from("player_characters").select("*").eq("player_id", user.userId).maybeSingle(),
       supabase.from("player_inventory").select("*").eq("player_id", user.userId).order("created_at"),
       supabase.from("player_session_notes").select("*").eq("player_id", user.userId).order("created_at",{ascending:false}),
@@ -218,6 +218,7 @@ function PlayerView({user, onLogout}){
       supabase.from("map_pins").select("*").order("created_at",{ascending:false}),
       supabase.from("map_config").select("*").order("id"),
         supabase.from("bestiary").select("*").order("name"),
+        supabase.from("mercato").select("*").order("name"),
     ]);
     if(charRes.data){
       const c = charRes.data;
@@ -235,6 +236,7 @@ function PlayerView({user, onLogout}){
       fazioni:(factions.data||[]).filter(f=>f.tipo!=="gilda"), mondo:locations.data||[], cronologia:timeline.data||[],
       map_pins:map_pins.data||[], map_config:map_config.data?.[0]||null,
       bestiario:bestiary.data||[],
+      mercato:mercatoRes2.data||[],
     });
     const playersRes = await supabase.from("player_characters").select("*").order("name");
     const parsed = (playersRes.data||[]).map(p=>{
@@ -343,7 +345,7 @@ function PlayerView({user, onLogout}){
     {v:"mappa",icon:"🗺️",label:"Mappa"},
     {v:"fazioni",icon:"⚔️",label:"Fazioni"},
     {v:"mondo",icon:"🌍",label:"Fogli del Mondo"},
-    {v:"cronologia",icon:"⏳",label:"Cronologia"},
+    {v:"cronologia",icon:"⏳",label:"Cronologia"},{v:"mercato",icon:"🏪",label:"Mercato"},
   ];
   const partyNavItems=[
     {v:"bastioni",icon:"⚓",label:"Bastioni"},
@@ -1257,6 +1259,7 @@ const TABLE_MAP = {
   gilda:{table:"factions",fields:[{id:"name",l:"Nome",ph:"Nome"},{id:"grado",l:"Grado",sel:["Ferro","Argento","Oro","Platino","Adamantio"]},{id:"description",l:"Descrizione",ph:"...",ta:true},{id:"sede",l:"Sede",ph:"es. Porto di Arenmar"},{id:"influence",l:"Fama %",ph:"0-100"}],tipo:"gilda",hasImage:true,imageBucket:"npc-images",imageField:"img_url"},
   fazioni:{table:"factions",fields:[{id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"⚔️"},{id:"description",l:"Descrizione",ph:"...",ta:true},{id:"influence",l:"Influenza %",ph:"0-100"}],tipo:"fazione"},
   mondo:{table:"locations",fields:[{id:"name",l:"Nome",ph:"Nome"},{id:"icon",l:"Icona",ph:"🏰"},{id:"sub",l:"Descrizione",ph:"...",ta:true}]},
+  mercato:{table:"mercato",fields:[{id:"name",l:"Nome",ph:"es. Armeria di Brenor"},{id:"location",l:"Città/Luogo",ph:"es. Porto di Arenmar"},{id:"description",l:"Descrizione",ph:"Cosa vende...",ta:true}],hasImage:true,imageBucket:"npc-images",imageField:"img_url"},
   cronologia:{table:"timeline",fields:[{id:"date",l:"Data",ph:"Anno 1, Giorno X"},{id:"title",l:"Titolo",ph:"Evento..."},{id:"description",l:"Descrizione",ph:"Cosa accadde...",ta:true}],hasImage:true,imageBucket:"timeline-images",imageField:"image_path"},
 };
 
@@ -1413,6 +1416,110 @@ function GenericModal({title,fields,vals,onClose,onSave,saving,onChange,hasImage
     ))}
   </Modal>;
 }
+
+
+// ── MERCATO VIEW ──
+function MercatoView({isAuth, data, onUpdate}){
+  const [modal,setModal]=useState(null);
+  const [vals,setVals]=useState({});
+  const [imgFile,setImgFile]=useState(null);
+  const [imgPreview,setImgPreview]=useState("");
+  const [saving,setSaving]=useState(false);
+  const [detailOpen,setDetailOpen]=useState(null);
+
+  const save=async()=>{
+    setSaving(true);
+    try{
+      let imgUrl=vals.img_url||"";
+      if(imgFile){
+        const ext=imgFile.name.split(".").pop();
+        const path=`mercato/${Date.now()}.${ext}`;
+        const {error:upErr}=await supabase.storage.from("npc-images").upload(path,imgFile,{upsert:true});
+        if(!upErr){const {data:u}=supabase.storage.from("npc-images").getPublicUrl(path);imgUrl=u.publicUrl;}
+      }
+      const obj={...vals,img_url:imgUrl};
+      delete obj.id; delete obj.created_at;
+      if(modal?.id){await supabase.from("mercato").update(obj).eq("id",modal.id);}
+      else{await supabase.from("mercato").insert(obj);}
+      setModal(null);setImgFile(null);setImgPreview("");onUpdate();
+    }catch(e){alert("Errore: "+e.message);}
+    setSaving(false);
+  };
+
+  const del=async(id)=>{if(!window.confirm("Eliminare?"))return;await supabase.from("mercato").delete().eq("id",id);onUpdate();};
+
+  const inp={width:"100%",background:C.bg,border:`1px solid ${C.border2}`,borderRadius:8,color:C.text,fontFamily:"inherit",fontSize:14,padding:"8px 12px",outline:"none",marginTop:4,boxSizing:"border-box"};
+  const lbl={display:"block",fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim,marginBottom:2};
+
+  return <div>
+    {isAuth&&<div style={{marginBottom:12}}>
+      <Btn primary onClick={()=>{setVals({name:"",location:"",description:"",img_url:""});setImgPreview("");setImgFile(null);setModal({});}}>+ Aggiungi Negozio</Btn>
+    </div>}
+
+    {!(data||[]).length?<EmptyState msg="Nessun negozio ancora"/>:
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:12}}>
+        {(data||[]).map((s,i)=>(
+          <div key={s.id||i} onClick={()=>setDetailOpen(s)} style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden",cursor:"pointer"}}>
+            {s.img_url
+              ?<img src={s.img_url} style={{width:"100%",height:140,objectFit:"cover",display:"block"}}/>
+              :<div style={{height:140,background:C.bg3,display:"flex",alignItems:"center",justifyContent:"center",fontSize:40}}>🏪</div>}
+            <div style={{padding:"10px 12px"}}>
+              <div style={{fontFamily:"'Cinzel',serif",fontSize:12,fontWeight:600,color:C.text,marginBottom:2}}>{s.name}</div>
+              {s.location&&<div style={{fontSize:10,color:C.textDim}}>📍 {s.location}</div>}
+              {isAuth&&<div onClick={e=>{e.stopPropagation();}} style={{display:"flex",gap:4,marginTop:8}}>
+                <button onClick={()=>{setVals({...s});setImgPreview(s.img_url||"");setImgFile(null);setModal(s);}} style={{background:"none",border:"none",color:C.textDim,cursor:"pointer",fontSize:12}}>✏</button>
+                <button onClick={()=>del(s.id)} style={{background:"none",border:"none",color:"#f87171",cursor:"pointer",fontSize:12}}>🗑</button>
+              </div>}
+            </div>
+          </div>
+        ))}
+      </div>}
+
+    {/* Detail panel */}
+    {detailOpen&&<div onClick={()=>setDetailOpen(null)} style={{position:"fixed",inset:0,zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+      <div onClick={e=>e.stopPropagation()} style={{position:"absolute",inset:0,background:"rgba(0,0,0,.7)",backdropFilter:"blur(4px)"}}/>
+      <div style={{position:"relative",background:C.bg2,borderRadius:"20px 20px 0 0",border:`1px solid ${C.border2}`,width:"100%",maxWidth:640,maxHeight:"92vh",overflowY:"auto"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 20px 12px"}}>
+          <span style={{fontFamily:"'Cinzel',serif",fontSize:20,fontWeight:700,color:C.gold}}>{detailOpen.name}</span>
+          <button onClick={()=>setDetailOpen(null)} style={{background:"none",border:"none",fontSize:22,color:C.textDim,cursor:"pointer"}}>✕</button>
+        </div>
+        {detailOpen.img_url&&<div style={{padding:"0 20px 16px"}}>
+          <img src={detailOpen.img_url} style={{width:"100%",maxHeight:400,objectFit:"contain",background:C.bg3,borderRadius:12,border:`1px solid ${C.border2}`,display:"block"}}/>
+        </div>}
+        <div style={{padding:"0 20px 32px"}}>
+          {detailOpen.location&&<div style={{fontSize:13,color:C.textDim,marginBottom:8}}>📍 {detailOpen.location}</div>}
+          {detailOpen.description&&<div style={{fontSize:15,color:C.text,lineHeight:1.75}}>{detailOpen.description}</div>}
+        </div>
+      </div>
+    </div>}
+
+    {/* Add/Edit Modal */}
+    {modal!==null&&<div onClick={()=>setModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.88)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,maxWidth:480,width:"92%",maxHeight:"88vh",overflowY:"auto",padding:20,boxShadow:`0 0 40px ${C.goldGlow}`}}>
+        <div style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.gold,marginBottom:16}}>{modal?.id?"Modifica Negozio":"Nuovo Negozio"}</div>
+        <div style={{marginBottom:12}}>
+          <label style={lbl}>Immagine</label>
+          <div style={{marginTop:6,display:"flex",flexDirection:"column",gap:6}}>
+            {imgPreview?<img src={imgPreview} style={{width:"100%",maxHeight:220,objectFit:"contain",background:C.bg3,borderRadius:10,border:`1px solid ${C.border2}`}}/>
+              :<div style={{height:100,background:C.bg3,borderRadius:10,border:`2px dashed ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32}}>🏪</div>}
+            <label style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:"7px 14px",cursor:"pointer",fontSize:12,color:C.textDim,textAlign:"center"}}>
+              📷 Scegli immagine
+              <input type="file" accept="image/*" onChange={e=>{const f=e.target.files[0];if(f){setImgFile(f);setImgPreview(URL.createObjectURL(f));}}} style={{display:"none"}}/>
+            </label>
+          </div>
+        </div>
+        <div style={{marginBottom:12}}><label style={lbl}>Nome</label><input value={vals.name||""} onChange={e=>setVals(v=>({...v,name:e.target.value}))} placeholder="es. Armeria di Brenor" style={inp}/></div>
+        <div style={{marginBottom:12}}><label style={lbl}>Città/Luogo</label><input value={vals.location||""} onChange={e=>setVals(v=>({...v,location:e.target.value}))} placeholder="es. Porto di Arenmar" style={inp}/></div>
+        <div style={{marginBottom:16}}><label style={lbl}>Descrizione</label><textarea value={vals.description||""} onChange={e=>setVals(v=>({...v,description:e.target.value}))} placeholder="Cosa vende, chi gestisce..." style={{...inp,minHeight:80,resize:"vertical"}}/></div>
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+          <Btn onClick={()=>setModal(null)}>Annulla</Btn>
+          <Btn primary onClick={save} disabled={saving}>{saving?"Salvo...":"Salva"}</Btn>
+        </div>
+      </div>
+    </div>}
+  </div>;
+}
+
 
 // ── BESTIARY VIEW ──
 function BestiaryView({isAuth, data, onUpdate}){
@@ -2020,7 +2127,7 @@ export default function App(){
     }catch(e){return null;}
   });
   const [authChecked,setAuthChecked]=useState(false);
-  const [data,setData]=useState({sessioni:[],npc:[],gilda:[],fazioni:[],mondo:[],cronologia:[],map_pins:[],map_config:null,bestiario:[]});
+  const [data,setData]=useState({sessioni:[],npc:[],gilda:[],fazioni:[],mondo:[],cronologia:[],map_pins:[],map_config:null,bestiario:[],mercato:[]});
   const [loading,setLoading]=useState(true);
   const [view,setView]=useState("sessioni");
   const [sidebarOpen,setSidebarOpen]=useState(false);
@@ -2041,7 +2148,7 @@ export default function App(){
   const [selectedPlayer,setSelectedPlayer]=useState(null);
 
   const isAuth = user?.role==="dm";
-  const TITLES={sessioni:"Sessioni",npc:"NPC",mappa:"Mappa",gilda:"Gilda",fazioni:"Fazioni",mondo:"Fogli del Mondo",cronologia:"Cronologia",bestiario:"Bestiario Scoperto"};
+  const TITLES={sessioni:"Sessioni",npc:"NPC",mappa:"Mappa",gilda:"Gilda",fazioni:"Fazioni",mondo:"Fogli del Mondo",cronologia:"Cronologia",mercato:"Mercato",bestiario:"Bestiario Scoperto"};
 
   const handleLogin = (u) => {
     setUser(u);
@@ -2360,6 +2467,7 @@ export default function App(){
         </div>;
       }
 
+      case "mercato": return <MercatoView isAuth={isAuth} data={data.mercato} onUpdate={loadAll}/>;
       case "bestiario": return <BestiaryView isAuth={isAuth} data={data.bestiario} onUpdate={loadAll}/>;
 
       case "bastioni": return <BastioniView isAuth={isAuth} onUpdate={loadAll}/>;
@@ -2376,7 +2484,7 @@ export default function App(){
     {v:"sessioni",icon:"📜",label:"Sessioni"},{v:"gilda",icon:"🏴",label:"Gilda"},
     {v:"npc",icon:"👤",label:"NPC"},{v:"mappa",icon:"🗺️",label:"Mappa"},
     {v:"fazioni",icon:"⚔️",label:"Fazioni"},{v:"mondo",icon:"🌍",label:"Fogli del Mondo"},
-    {v:"cronologia",icon:"⏳",label:"Cronologia"},
+    {v:"cronologia",icon:"⏳",label:"Cronologia"},{v:"mercato",icon:"🏪",label:"Mercato"},
   ];
 
   return <div style={{display:"flex",height:"100vh",overflow:"hidden",background:C.bg,color:C.text,fontFamily:"'Inter',sans-serif"}}>
