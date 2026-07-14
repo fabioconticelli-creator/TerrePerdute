@@ -277,6 +277,24 @@ function PlayerView({user, onLogout}){
     setChar(c=>({...c,hp:newHp}));
   };
 
+  const toggleSkillProf=async(skillName)=>{
+    if(!char)return;
+    const profs=[...(char.skill_proficiencies||[])];
+    const idx=profs.indexOf(skillName);
+    if(idx>=0)profs.splice(idx,1);else profs.push(skillName);
+    await supabase.from("player_characters").update({skill_proficiencies:profs}).eq("id",char.id);
+    setChar(c=>({...c,skill_proficiencies:profs}));
+  };
+
+  const toggleSaveProf=async(stat)=>{
+    if(!char)return;
+    const profs=[...(char.saving_throw_proficiencies||[])];
+    const idx=profs.indexOf(stat);
+    if(idx>=0)profs.splice(idx,1);else profs.push(stat);
+    await supabase.from("player_characters").update({saving_throw_proficiencies:profs}).eq("id",char.id);
+    setChar(c=>({...c,saving_throw_proficiencies:profs}));
+  };
+
   const saveInv=async()=>{
     setSaving(true);
     const obj={...invVals,quantity:parseInt(invVals.quantity)||1};
@@ -719,23 +737,27 @@ function PlayerView({user, onLogout}){
                       <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:10,display:"flex",justifyContent:"space-between"}}>
                         <span>Abilità</span><span style={{fontWeight:400,color:C.textMuted}}>+{char.prof_bonus||2}</span>
                       </div>
-                      {ABILITA.map(a=>(
-                        <div key={a.n} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 2px"}}>
-                          <div style={{width:12,height:12,borderRadius:"50%",border:`2px solid ${C.border2}`,flexShrink:0}}/>
-                          <div style={{fontSize:12,fontWeight:600,color:C.text,width:28}}>{fmtMod(mod(char[a.s]||10))}</div>
+                      {ABILITA.map(a=>{
+                        const hasProf=(char.skill_proficiencies||[]).includes(a.n);
+                        const bonus=mod(char[a.s]||10)+(hasProf?(char.prof_bonus||2):0);
+                        return <div key={a.n} onClick={()=>toggleSkillProf(a.n)} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 2px",cursor:"pointer",borderRadius:4,transition:"background .1s"}}>
+                          <div style={{width:12,height:12,borderRadius:"50%",border:`2px solid ${hasProf?C.gold:C.border2}`,background:hasProf?C.gold:"transparent",flexShrink:0,transition:"all .15s"}}/>
+                          <div style={{fontSize:12,fontWeight:600,color:hasProf?C.gold:C.text,width:28}}>{fmtMod(bonus)}</div>
                           <div style={{fontSize:11,color:C.textDim,flex:1}}>{a.n}</div>
-                        </div>
-                      ))}
+                        </div>;
+                      })}
                     </Card>
                     <Card>
                       <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:10}}>Tiri Salvezza</div>
-                      {[["FOR","str"],["DES","dex"],["COS","con"],["INT","int"],["SAG","wis"],["CAR","cha"]].map(([l,k])=>(
-                        <div key={k} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 2px"}}>
-                          <div style={{width:12,height:12,borderRadius:"50%",border:`2px solid ${C.border2}`,flexShrink:0}}/>
-                          <div style={{fontSize:12,fontWeight:600,color:C.text,width:28}}>{fmtMod(mod(char[k]||10))}</div>
+                      {[["FOR","str"],["DES","dex"],["COS","con"],["INT","int"],["SAG","wis"],["CAR","cha"]].map(([l,k])=>{
+                        const hasProf=(char.saving_throw_proficiencies||[]).includes(k);
+                        const bonus=mod(char[k]||10)+(hasProf?(char.prof_bonus||2):0);
+                        return <div key={k} onClick={()=>toggleSaveProf(k)} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 2px",cursor:"pointer"}}>
+                          <div style={{width:12,height:12,borderRadius:"50%",border:`2px solid ${hasProf?C.gold:C.border2}`,background:hasProf?C.gold:"transparent",flexShrink:0,transition:"all .15s"}}/>
+                          <div style={{fontSize:12,fontWeight:600,color:hasProf?C.gold:C.text,width:28}}>{fmtMod(bonus)}</div>
                           <div style={{fontSize:11,color:C.textDim,flex:1}}>{l}</div>
-                        </div>
-                      ))}
+                        </div>;
+                      })}
                     </Card>
                   </div>
                   {(char.attacks||[]).length>0&&<Card style={{marginBottom:12}}>
