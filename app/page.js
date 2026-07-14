@@ -1498,6 +1498,8 @@ function MercatoView({isAuth, data, onUpdate}){
   const [vals,setVals]=useState({});
   const [imgFile,setImgFile]=useState(null);
   const [imgPreview,setImgPreview]=useState("");
+  const [catalogFile,setCatalogFile]=useState(null);
+  const [catalogPreview,setCatalogPreview]=useState("");
   const [saving,setSaving]=useState(false);
   const [detailOpen,setDetailOpen]=useState(null);
 
@@ -1517,11 +1519,24 @@ function MercatoView({isAuth, data, onUpdate}){
         const {data:u}=supabase.storage.from("npc-images").getPublicUrl(path);
         imgUrl=u.publicUrl;
       }
-      const obj={...vals,img_url:imgUrl};
+      let catalogUrl=vals.catalog_img_url||"";
+      if(catalogFile){
+        const ext=catalogFile.name.split(".").pop();
+        const path=`mercato/catalog_${Date.now()}.${ext}`;
+        const {error:upErr}=await supabase.storage.from("npc-images").upload(path,catalogFile,{upsert:true});
+        if(upErr){
+          alert("Errore upload immagine catalogo: "+upErr.message);
+          setSaving(false);
+          return;
+        }
+        const {data:u}=supabase.storage.from("npc-images").getPublicUrl(path);
+        catalogUrl=u.publicUrl;
+      }
+      const obj={...vals,img_url:imgUrl,catalog_img_url:catalogUrl};
       delete obj.id; delete obj.created_at;
       if(modal?.id){await supabase.from("mercato").update(obj).eq("id",modal.id);}
       else{await supabase.from("mercato").insert(obj);}
-      setModal(null);setImgFile(null);setImgPreview("");onUpdate();
+      setModal(null);setImgFile(null);setImgPreview("");setCatalogFile(null);setCatalogPreview("");onUpdate();
     }catch(e){alert("Errore: "+e.message);}
     setSaving(false);
   };
@@ -1533,7 +1548,7 @@ function MercatoView({isAuth, data, onUpdate}){
 
   return <div>
     {isAuth&&<div style={{marginBottom:12}}>
-      <Btn primary onClick={()=>{setVals({name:"",location:"",description:"",img_url:""});setImgPreview("");setImgFile(null);setModal({});}}>+ Aggiungi Negozio</Btn>
+      <Btn primary onClick={()=>{setVals({name:"",location:"",description:"",img_url:"",catalog_img_url:""});setImgPreview("");setImgFile(null);setCatalogPreview("");setCatalogFile(null);setModal({});}}>+ Aggiungi Negozio</Btn>
     </div>}
 
     {!(data||[]).length?<EmptyState msg="Nessun negozio ancora"/>:
@@ -1546,8 +1561,9 @@ function MercatoView({isAuth, data, onUpdate}){
             <div style={{padding:"10px 12px"}}>
               <div style={{fontFamily:"'Cinzel',serif",fontSize:12,fontWeight:600,color:C.text,marginBottom:2}}>{s.name}</div>
               {s.location&&<div style={{fontSize:10,color:C.textDim}}>📍 {s.location}</div>}
+              {s.description&&<div style={{fontSize:10,color:C.textMuted,marginTop:4,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{s.description}</div>}
               {isAuth&&<div onClick={e=>{e.stopPropagation();}} style={{display:"flex",gap:4,marginTop:8}}>
-                <button onClick={()=>{setVals({...s});setImgPreview(s.img_url||"");setImgFile(null);setModal(s);}} style={{background:"none",border:"none",color:C.textDim,cursor:"pointer",fontSize:12}}>✏</button>
+                <button onClick={()=>{setVals({...s});setImgPreview(s.img_url||"");setImgFile(null);setCatalogPreview(s.catalog_img_url||"");setCatalogFile(null);setModal(s);}} style={{background:"none",border:"none",color:C.textDim,cursor:"pointer",fontSize:12}}>✏</button>
                 <button onClick={()=>del(s.id)} style={{background:"none",border:"none",color:"#f87171",cursor:"pointer",fontSize:12}}>🗑</button>
               </div>}
             </div>
@@ -1563,8 +1579,8 @@ function MercatoView({isAuth, data, onUpdate}){
           <span style={{fontFamily:"'Cinzel',serif",fontSize:20,fontWeight:700,color:C.gold}}>{detailOpen.name}</span>
           <button onClick={()=>setDetailOpen(null)} style={{background:"none",border:"none",fontSize:22,color:C.textDim,cursor:"pointer"}}>✕</button>
         </div>
-        {detailOpen.img_url&&<div style={{padding:"0 20px 16px"}}>
-          <img src={detailOpen.img_url} style={{width:"100%",maxHeight:400,objectFit:"contain",background:C.bg3,borderRadius:12,border:`1px solid ${C.border2}`,display:"block"}}/>
+        {(detailOpen.catalog_img_url||detailOpen.img_url)&&<div style={{padding:"0 20px 16px"}}>
+          <img src={detailOpen.catalog_img_url||detailOpen.img_url} style={{width:"100%",maxHeight:'none',objectFit:"contain",background:C.bg3,borderRadius:12,border:`1px solid ${C.border2}`,display:"block"}}/>
         </div>}
         <div style={{padding:"0 20px 32px"}}>
           {detailOpen.location&&<div style={{fontSize:13,color:C.textDim,marginBottom:8}}>📍 {detailOpen.location}</div>}
@@ -1578,13 +1594,25 @@ function MercatoView({isAuth, data, onUpdate}){
       <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,maxWidth:480,width:"92%",maxHeight:"88vh",overflowY:"auto",padding:20,boxShadow:`0 0 40px ${C.goldGlow}`}}>
         <div style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:600,color:C.gold,marginBottom:16}}>{modal?.id?"Modifica Negozio":"Nuovo Negozio"}</div>
         <div style={{marginBottom:12}}>
-          <label style={lbl}>Immagine</label>
+          <label style={lbl}>Immagine Copertina</label>
           <div style={{marginTop:6,display:"flex",flexDirection:"column",gap:6}}>
             {imgPreview?<img src={imgPreview} style={{width:"100%",maxHeight:220,objectFit:"contain",background:C.bg3,borderRadius:10,border:`1px solid ${C.border2}`}}/>
               :<div style={{height:100,background:C.bg3,borderRadius:10,border:`2px dashed ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32}}>🏪</div>}
             <label style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:"7px 14px",cursor:"pointer",fontSize:12,color:C.textDim,textAlign:"center"}}>
-              📷 Scegli immagine
+              📷 Scegli immagine copertina
               <input type="file" accept="image/*" onChange={e=>{const f=e.target.files[0];if(f){setImgFile(f);setImgPreview(URL.createObjectURL(f));}}} style={{display:"none"}}/>
+            </label>
+          </div>
+        </div>
+        <div style={{marginBottom:12}}>
+          <label style={lbl}>Immagine Catalogo/Menu</label>
+          <div style={{fontSize:10,color:C.textMuted,marginBottom:6}}>Mostrata a schermo intero quando il giocatore apre il negozio</div>
+          <div style={{marginTop:6,display:"flex",flexDirection:"column",gap:6}}>
+            {catalogPreview?<img src={catalogPreview} style={{width:"100%",maxHeight:220,objectFit:"contain",background:C.bg3,borderRadius:10,border:`1px solid ${C.border2}`}}/>
+              :<div style={{height:100,background:C.bg3,borderRadius:10,border:`2px dashed ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32}}>📜</div>}
+            <label style={{background:C.bg3,border:`1px solid ${C.border2}`,borderRadius:8,padding:"7px 14px",cursor:"pointer",fontSize:12,color:C.textDim,textAlign:"center"}}>
+              📷 Scegli immagine catalogo
+              <input type="file" accept="image/*" onChange={e=>{const f=e.target.files[0];if(f){setCatalogFile(f);setCatalogPreview(URL.createObjectURL(f));}}} style={{display:"none"}}/>
             </label>
           </div>
         </div>
