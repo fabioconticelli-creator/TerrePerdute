@@ -700,13 +700,17 @@ function PlayerView({user, onLogout}){
                   ))}
                 </div>
                 {tab==="scheda"&&<>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
-                    {[["CA",char.ac||0],["Livello",char.level||1],["Background",char.background||"—"]].map(([l,v])=>(
-                      <div key={l} style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 8px",textAlign:"center"}}>
-                        <div style={{fontSize:9,fontWeight:700,letterSpacing:".18em",textTransform:"uppercase",color:C.textDim}}>{l}</div>
-                        <div style={{fontFamily:"'Cinzel',serif",fontSize:typeof v==="number"?22:13,fontWeight:700,color:C.text,marginTop:3}}>{v}</div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:8}}>
+                    {[["CA",char.ac||0],["Iniziativa",fmtMod(mod(char.dex||10))],["Livello",char.level||1],["B.Comp.",`+${char.prof_bonus||2}`]].map(([l,v])=>(
+                      <div key={l} style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 4px",textAlign:"center"}}>
+                        <div style={{fontSize:8,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim,marginBottom:2}}>{l}</div>
+                        <div style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:l==="Iniziativa"?(mod(char.dex||10)>=0?C.green:"#f87171"):l==="B.Comp."?C.gold:C.text}}>{v}</div>
                       </div>
                     ))}
+                  </div>
+                  <div style={{background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 12px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <span style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:C.textDim}}>Background</span>
+                    <span style={{fontFamily:"'Cinzel',serif",fontSize:13,fontWeight:700,color:C.text}}>{char.background||"—"}</span>
                   </div>
                   <Card style={{marginBottom:12}}>
                     <div style={{fontSize:13,color:C.textDim,marginBottom:10}}>Punti Ferita</div>
