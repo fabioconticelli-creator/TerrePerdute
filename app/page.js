@@ -27,6 +27,14 @@ const ABILITA = [
 
 const mod = v => Math.floor(((v||10)-10)/2);
 const fmtMod = v => (v>=0?"+":"")+v;
+const partyIcon = name => {
+  const n=(name||"").toLowerCase();
+  if(n.includes("kassandra"))return "🛡️";
+  if(n.includes("taipan"))return "🐍";
+  if(n.includes("vaelor"))return "🍃";
+  if(n.includes("lobdlin")||n.includes("lobdi"))return "🕊️";
+  return "⚔️";
+};
 const tagColor = t => ({
   Alleato:{border:"#1a4a2e",color:"#4ade80"},
   Neutrale:{border:"#4a3800",color:"#fbbf24"},
@@ -679,17 +687,10 @@ function PlayerView({user, onLogout}){
             <div style={{fontSize:10,fontWeight:600,letterSpacing:".18em",textTransform:"uppercase",color:C.textMuted,padding:"0 18px 6px"}}>La Compagnia</div>
             {allPlayers.map((p,i)=>{
               const vkey=`compagno_${p.id}`;
-              const hpPct=p.max_hp>0?Math.max(0,Math.min(100,((p.hp||0)/p.max_hp)*100)):0;
-              const hpColor=hpPct>60?C.green:hpPct>25?C.yellow:"#f87171";
-              return <div key={i} onClick={()=>{setSelectedCompagno(p);setView(vkey);setSidebarOpen(false);load();}} style={{padding:"9px 18px",cursor:"pointer",background:view===vkey?`rgba(212,160,23,.08)`:"transparent",borderLeft:`2px solid ${view===vkey?C.gold:"transparent"}`}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
-                  <div style={{width:8,height:8,borderRadius:"50%",background:hpColor,flexShrink:0}}/>
-                  <div style={{fontSize:13,color:view===vkey?C.gold:C.textDim,fontWeight:view===vkey?500:400}}>{p.name}</div>
-                  <div style={{marginLeft:"auto",fontSize:10,color:C.textMuted}}>{p.hp}/{p.max_hp}</div>
-                </div>
-                <div style={{height:3,background:C.bg3,borderRadius:2,overflow:"hidden",marginLeft:16}}>
-                  <div style={{height:"100%",width:`${hpPct}%`,background:hpColor,borderRadius:2}}/>
-                </div>
+              return <div key={i} onClick={()=>{setSelectedCompagno(p);setView(vkey);setSidebarOpen(false);load();}} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 18px",cursor:"pointer",background:view===vkey?`rgba(212,160,23,.08)`:"transparent",borderLeft:`2px solid ${view===vkey?C.gold:"transparent"}`}}>
+                <span style={{fontSize:14,flexShrink:0}}>{partyIcon(p.name)}</span>
+                <div style={{fontSize:13,color:view===vkey?C.gold:C.textDim,fontWeight:view===vkey?500:400}}>{p.name}</div>
+                <div style={{marginLeft:"auto",fontSize:10,color:C.textMuted}}>{p.hp}/{p.max_hp}</div>
               </div>;
             })}
           </div>
@@ -2642,17 +2643,10 @@ export default function App(){
           {players.map((p,i)=>{
             const vkey = `player_${p.id}`;
             const name = p.name || "Player";
-            const hpPct = p.max_hp>0?Math.max(0,Math.min(100,(p.hp/p.max_hp)*100)):0;
-            const hpColor = hpPct>60?C.green:hpPct>25?C.yellow:"#f87171";
-            return <div key={i} onClick={()=>{setSelectedPlayer(p);nav(vkey);}} style={{padding:"9px 18px",cursor:"pointer",background:view===vkey?`rgba(212,160,23,.08)`:"transparent",borderLeft:`2px solid ${view===vkey?C.gold:"transparent"}`}}>
-              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
-                <div style={{width:8,height:8,borderRadius:"50%",background:hpColor,flexShrink:0}}/>
-                <div style={{fontSize:13,color:view===vkey?C.gold:C.textDim,fontWeight:view===vkey?500:400}}>{name}</div>
-                <div style={{marginLeft:"auto",fontSize:10,color:C.textMuted}}>{p.hp}/{p.max_hp}</div>
-              </div>
-              <div style={{height:3,background:C.bg3,borderRadius:2,overflow:"hidden",marginLeft:16}}>
-                <div style={{height:"100%",width:`${hpPct}%`,background:hpColor,borderRadius:2}}/>
-              </div>
+            return <div key={i} onClick={()=>{setSelectedPlayer(p);nav(vkey);}} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 18px",cursor:"pointer",background:view===vkey?`rgba(212,160,23,.08)`:"transparent",borderLeft:`2px solid ${view===vkey?C.gold:"transparent"}`}}>
+              <span style={{fontSize:14,flexShrink:0}}>{partyIcon(name)}</span>
+              <div style={{fontSize:13,color:view===vkey?C.gold:C.textDim,fontWeight:view===vkey?500:400}}>{name}</div>
+              <div style={{marginLeft:"auto",fontSize:10,color:C.textMuted}}>{p.hp}/{p.max_hp}</div>
             </div>;
           })}
         </div>
