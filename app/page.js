@@ -345,7 +345,7 @@ function PlayerView({user, onLogout}){
     {v:"mappa",icon:"🗺️",label:"Mappa"},
     {v:"fazioni",icon:"⚔️",label:"Fazioni"},
     {v:"mondo",icon:"🌍",label:"Fogli del Mondo"},
-    {v:"cronologia",icon:"⏳",label:"Cronologia"},{v:"mercato",icon:"🏪",label:"Mercato"},
+    {v:"cronologia",icon:"⏳",label:"Cronologia"},{v:"mercato",icon:"🪙",label:"Mercato"},
   ];
   const partyNavItems=[
     {v:"bastioni",icon:"⚓",label:"Bastioni"},
@@ -1461,7 +1461,7 @@ function MercatoView({isAuth, data, onUpdate}){
         {(data||[]).map((s,i)=>(
           <div key={s.id||i} onClick={()=>setDetailOpen(s)} style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden",cursor:"pointer"}}>
             {s.img_url
-              ?<img src={s.img_url} style={{width:"100%",height:140,objectFit:"cover",display:"block"}}/>
+              ?<img src={s.img_url} style={{width:"100%",height:180,objectFit:"contain",background:C.bg3,display:"block"}}/>
               :<div style={{height:140,background:C.bg3,display:"flex",alignItems:"center",justifyContent:"center",fontSize:40}}>🏪</div>}
             <div style={{padding:"10px 12px"}}>
               <div style={{fontFamily:"'Cinzel',serif",fontSize:12,fontWeight:600,color:C.text,marginBottom:2}}>{s.name}</div>
@@ -2484,7 +2484,7 @@ export default function App(){
     {v:"sessioni",icon:"📜",label:"Sessioni"},{v:"gilda",icon:"🏴",label:"Gilda"},
     {v:"npc",icon:"👤",label:"NPC"},{v:"mappa",icon:"🗺️",label:"Mappa"},
     {v:"fazioni",icon:"⚔️",label:"Fazioni"},{v:"mondo",icon:"🌍",label:"Fogli del Mondo"},
-    {v:"cronologia",icon:"⏳",label:"Cronologia"},{v:"mercato",icon:"🏪",label:"Mercato"},
+    {v:"cronologia",icon:"⏳",label:"Cronologia"},{v:"mercato",icon:"🪙",label:"Mercato"},
   ];
 
   return <div style={{display:"flex",height:"100vh",overflow:"hidden",background:C.bg,color:C.text,fontFamily:"'Inter',sans-serif"}}>
