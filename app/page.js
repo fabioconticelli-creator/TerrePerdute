@@ -1502,6 +1502,7 @@ function MercatoView({isAuth, data, onUpdate}){
   const [catalogPreview,setCatalogPreview]=useState("");
   const [saving,setSaving]=useState(false);
   const [detailOpen,setDetailOpen]=useState(null);
+  const [fullscreenImg,setFullscreenImg]=useState(null);
 
   const save=async()=>{
     setSaving(true);
@@ -1574,19 +1575,25 @@ function MercatoView({isAuth, data, onUpdate}){
     {/* Detail panel */}
     {detailOpen&&<div onClick={()=>setDetailOpen(null)} style={{position:"fixed",inset:0,zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
       <div onClick={e=>e.stopPropagation()} style={{position:"absolute",inset:0,background:"rgba(0,0,0,.7)",backdropFilter:"blur(4px)"}}/>
-      <div style={{position:"relative",background:C.bg2,borderRadius:"20px 20px 0 0",border:`1px solid ${C.border2}`,width:"100%",maxWidth:640,maxHeight:"92vh",overflowY:"auto"}}>
+      <div style={{position:"relative",background:C.bg2,borderRadius:"20px 20px 0 0",border:`1px solid ${C.border2}`,width:"100%",maxWidth:960,maxHeight:"96vh",overflowY:"auto"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 20px 12px"}}>
           <span style={{fontFamily:"'Cinzel',serif",fontSize:20,fontWeight:700,color:C.gold}}>{detailOpen.name}</span>
           <button onClick={()=>setDetailOpen(null)} style={{background:"none",border:"none",fontSize:22,color:C.textDim,cursor:"pointer"}}>✕</button>
         </div>
         {(detailOpen.catalog_img_url||detailOpen.img_url)&&<div style={{padding:"0 20px 16px"}}>
-          <img src={detailOpen.catalog_img_url||detailOpen.img_url} style={{width:"100%",maxHeight:'none',objectFit:"contain",background:C.bg3,borderRadius:12,border:`1px solid ${C.border2}`,display:"block"}}/>
+          <img src={detailOpen.catalog_img_url||detailOpen.img_url} onClick={()=>setFullscreenImg(detailOpen.catalog_img_url||detailOpen.img_url)} style={{width:"100%",maxHeight:'none',objectFit:"contain",background:C.bg3,borderRadius:12,border:`1px solid ${C.border2}`,display:"block",cursor:"zoom-in"}}/>
         </div>}
         <div style={{padding:"0 20px 32px"}}>
           {detailOpen.location&&<div style={{fontSize:13,color:C.textDim,marginBottom:8}}>📍 {detailOpen.location}</div>}
           {detailOpen.description&&<div style={{fontSize:15,color:C.text,lineHeight:1.75}}>{detailOpen.description}</div>}
         </div>
       </div>
+    </div>}
+
+    {/* Fullscreen catalog image viewer */}
+    {fullscreenImg&&<div onClick={()=>setFullscreenImg(null)} style={{position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,.95)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"zoom-out",padding:16}}>
+      <img src={fullscreenImg} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain"}}/>
+      <button onClick={()=>setFullscreenImg(null)} style={{position:"fixed",top:16,right:16,background:"rgba(0,0,0,.6)",border:`1px solid ${C.border2}`,borderRadius:"50%",width:40,height:40,color:C.text,fontSize:20,cursor:"pointer"}}>✕</button>
     </div>}
 
     {/* Add/Edit Modal */}
