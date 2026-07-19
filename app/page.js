@@ -505,6 +505,7 @@ function PlayerView({user, onLogout}){
           </div>
         </div>;
       }
+      case "bestiario": return <PlayerBestiaryView data={campData.bestiario} userId={user.userId} onUpdate={load}/>;
       default:
         if(view.startsWith("compagno_")&&selectedCompagno){
           const p=selectedCompagno;
@@ -1771,7 +1772,7 @@ function BestiaryView({isAuth, data, onUpdate}){
 
     {/* Add button */}
     {isAuth&&<div style={{marginBottom:12}}>
-      <Btn primary onClick={()=>{setVals({name:"",type:"Bestia",challenge_rating:"1",hp:"",description:"",attacks:"",img_url:"",unlocked:false});setImgPreview("");setImgFile(null);setModal({});}}>+ Aggiungi Creatura</Btn>
+      <Btn primary onClick={()=>{setVals({name:"",type:"Bestia",challenge_rating:"1",hp:"",description:"",attacks:"",img_url:""});setImgPreview("");setImgFile(null);setModal({});}}>+ Aggiungi Creatura</Btn>
     </div>}
 
     {/* List */}
@@ -1881,26 +1882,8 @@ function BestiaryView({isAuth, data, onUpdate}){
 function PlayerBestiaryView({data, userId, onUpdate}){
   const [search,setSearch]=useState("");
   const [detailOpen,setDetailOpen]=useState(null);
-  const [unlockSearch,setUnlockSearch]=useState("");
-  const [unlockResults,setUnlockResults]=useState([]);
-  const [searching,setSearching]=useState(false);
-  const [unlockMode,setUnlockMode]=useState(false);
 
   const filtered=(data||[]).filter(c=>c.name.toLowerCase().includes(search.toLowerCase()));
-
-  const searchCreature=async()=>{
-    if(!unlockSearch.trim())return;
-    setSearching(true);
-    const {data:res}=await supabase.from("bestiary").select("*").ilike("name",`%${unlockSearch}%`);
-    setUnlockResults(res||[]);
-    setSearching(false);
-  };
-
-  const unlock=async(creature)=>{
-    await supabase.from("bestiary").update({unlocked:true}).eq("id",creature.id);
-    setUnlockResults(r=>r.filter(x=>x.id!==creature.id));
-    onUpdate();
-  };
 
   const crColor=(cr)=>{
     const n=parseFloat(cr)||0;
@@ -1913,39 +1896,13 @@ function PlayerBestiaryView({data, userId, onUpdate}){
   const inp={width:"100%",background:C.bg,border:`1px solid ${C.border2}`,borderRadius:8,color:C.text,fontFamily:"inherit",fontSize:14,padding:"8px 12px",outline:"none",marginTop:4,boxSizing:"border-box"};
 
   return <div>
-    <div style={{display:"flex",gap:8,marginBottom:16}}>
-      <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Cerca nel bestiario..." style={{...inp,marginTop:0,flex:1}}/>
-      <Btn onClick={()=>setUnlockMode(m=>!m)} primary={unlockMode}>🔓 Sblocca</Btn>
+    <div style={{marginBottom:16}}>
+      <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Cerca nel bestiario..." style={{...inp,marginTop:0}}/>
     </div>
 
-    {/* Unlock mode */}
-    {unlockMode&&<Card style={{marginBottom:16}}>
-      <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:10}}>Sblocca Creatura</div>
-      <div style={{display:"flex",gap:8,marginBottom:10}}>
-        <input value={unlockSearch} onChange={e=>setUnlockSearch(e.target.value)} onKeyDown={e=>e.key==="Enter"&&searchCreature()} placeholder="Cerca nome creatura..." style={{...inp,marginTop:0,flex:1}}/>
-        <Btn primary onClick={searchCreature} disabled={searching}>{searching?"...":"Cerca"}</Btn>
-      </div>
-      {unlockResults.length>0&&<div style={{display:"flex",flexDirection:"column",gap:6}}>
-        {unlockResults.map((c,i)=>(
-          <div key={c.id||i} style={{display:"flex",alignItems:"center",gap:10,background:C.bg3,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 12px"}}>
-            <div style={{width:36,height:36,borderRadius:8,background:C.bg,border:`1px solid ${C.border2}`,flexShrink:0,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>
-              {c.img_url?<img src={c.img_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:"🐉"}
-            </div>
-            <div style={{flex:1}}>
-              <div style={{fontSize:13,fontWeight:600,color:C.text}}>{c.name}</div>
-              <div style={{fontSize:11,color:C.textDim}}>{c.type} · GS {c.challenge_rating}</div>
-            </div>
-            {c.unlocked
-              ?<span style={{fontSize:11,color:C.green}}>✓ Già sbloccato</span>
-              :<Btn primary onClick={()=>unlock(c)}>Sblocca</Btn>}
-          </div>
-        ))}
-      </div>}
-      {unlockResults.length===0&&unlockSearch&&!searching&&<div style={{textAlign:"center",padding:"20px",color:C.textMuted,fontSize:13}}>Nessuna creatura trovata</div>}
-    </Card>}
 
     {/* Unlocked list */}
-    {filtered.length===0?<EmptyState msg="Nessuna creatura sbloccata — usa 🔓 Sblocca per aggiungerne!"/>:
+    {filtered.length===0?<EmptyState msg="Nessuna creatura nel bestiario"/>:
       <div style={{display:"flex",flexDirection:"column",gap:8}}>
         {filtered.map((c,i)=>(
           <div key={c.id||i} onClick={()=>setDetailOpen(c)} style={{display:"flex",alignItems:"center",gap:12,background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",cursor:"pointer"}}>
