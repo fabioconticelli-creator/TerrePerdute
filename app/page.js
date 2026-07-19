@@ -256,7 +256,7 @@ function PlayerView({user, onLogout}){
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [view, setView] = useState("scheda");
+  const [view, setView] = useState("sessioni");
   const [campData, setCampData] = useState({sessioni:[],npc:[],gilda:[],fazioni:[],mondo:[],cronologia:[],map_pins:[],map_config:null,guild_rules:null});
   const [npcOpen, setNpcOpen] = useState(null);
   const [allPlayers, setAllPlayers] = useState([]);
