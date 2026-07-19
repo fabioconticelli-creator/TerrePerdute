@@ -232,15 +232,16 @@ function PlayerView({user, onLogout}){
   const [avatarPreview, setAvatarPreview] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [view, setView] = useState("scheda");
-  const [campData, setCampData] = useState({sessioni:[],npc:[],gilda:[],fazioni:[],mondo:[],cronologia:[],map_pins:[],map_config:null});
+  const [campData, setCampData] = useState({sessioni:[],npc:[],gilda:[],fazioni:[],mondo:[],cronologia:[],map_pins:[],map_config:null,guild_rules:null});
   const [npcOpen, setNpcOpen] = useState(null);
   const [allPlayers, setAllPlayers] = useState([]);
   const [selectedCompagno, setSelectedCompagno] = useState(null);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   const charTabs = ["scheda","inventario","famigli","note sessione"];
 
   const load = async () => {
-    const [charRes, invRes, notesRes, npcs, sessions, factions, locations, timeline, map_pins, map_config, bestiary, mercatoRes2] = await Promise.all([
+    const [charRes, invRes, notesRes, npcs, sessions, factions, locations, timeline, map_pins, map_config, bestiary, mercatoRes2, guildRulesRes] = await Promise.all([
       supabase.from("player_characters").select("*").eq("player_id", user.userId).maybeSingle(),
       supabase.from("player_inventory").select("*").eq("player_id", user.userId).order("created_at"),
       supabase.from("player_session_notes").select("*").eq("player_id", user.userId).order("created_at",{ascending:false}),
@@ -253,6 +254,7 @@ function PlayerView({user, onLogout}){
       supabase.from("map_config").select("*").order("id"),
         supabase.from("bestiary").select("*").order("name"),
         supabase.from("mercato").select("*").order("name"),
+        supabase.from("guild_rules").select("*").limit(1),
     ]);
     if(charRes.data){
       const c = charRes.data;
@@ -271,6 +273,7 @@ function PlayerView({user, onLogout}){
       map_pins:map_pins.data||[], map_config:map_config.data?.[0]||null,
       bestiario:bestiary.data||[],
       mercato:mercatoRes2.data||[],
+      guild_rules:guildRulesRes.data?.[0]||null,
     });
     const playersRes = await supabase.from("player_characters").select("*").order("name");
     const parsed = (playersRes.data||[]).map(p=>{
@@ -422,9 +425,14 @@ function PlayerView({user, onLogout}){
         const gradoColorP={"Ferro":"#a0522d","Argento":"#c0c0c0","Oro":C.gold,"Platino":"#e5e4e2","Adamantio":"#b9f2ff"};
         const sortedGP=[...campData.gilda].sort((a,b)=>(gradoOrdP[b.grado]||0)-(gradoOrdP[a.grado]||0));
         const gradiP=["Adamantio","Platino","Oro","Argento","Ferro"];
-        return !campData.gilda.length?<EmptyState msg="Nessuna gilda ancora"/>:
-        <div>
-          {gradiP.map(grado=>{
+        return <div>
+          <div onClick={()=>setRulesOpen(true)} style={{display:"flex",alignItems:"center",gap:10,background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:12,padding:"12px 14px",marginBottom:16,cursor:"pointer"}}>
+            <span style={{fontSize:18}}>📜</span>
+            <span style={{fontFamily:"'Cinzel',serif",fontSize:13,fontWeight:600,color:C.gold,flex:1}}>Regole di Gilda</span>
+            <span style={{fontSize:12,color:C.textMuted}}>Come funziona la fama ›</span>
+          </div>
+          {!campData.gilda.length?<EmptyState msg="Nessuna gilda ancora"/>:
+          gradiP.map(grado=>{
             const gruppi=sortedGP.filter(g=>g.grado===grado);
             if(!gruppi.length)return null;
             return <div key={grado} style={{marginBottom:16}}>
@@ -446,6 +454,17 @@ function PlayerView({user, onLogout}){
               ))}
             </div>;
           })}
+          {rulesOpen&&<div onClick={()=>setRulesOpen(false)} style={{position:"fixed",inset:0,zIndex:300,background:"rgba(0,0,0,.85)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,maxWidth:560,width:"100%",maxHeight:"80vh",overflowY:"auto",padding:24,boxShadow:`0 0 40px ${C.goldGlow}`}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+                <span style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.gold}}>📜 Regole di Gilda</span>
+                <button onClick={()=>setRulesOpen(false)} style={{background:"none",border:"none",fontSize:22,color:C.textDim,cursor:"pointer"}}>✕</button>
+              </div>
+              {campData.guild_rules?.text
+                ?<LongText text={campData.guild_rules.text}/>
+                :<div style={{color:C.textMuted,fontSize:13,fontStyle:"italic"}}>Il DM non ha ancora scritto le regole di gilda.</div>}
+            </div>
+          </div>}
         </div>;
       }
       case "fazioni": return !campData.fazioni.length?<EmptyState msg="Nessuna fazione ancora"/>:
@@ -2226,7 +2245,7 @@ export default function App(){
     }catch(e){return null;}
   });
   const [authChecked,setAuthChecked]=useState(false);
-  const [data,setData]=useState({sessioni:[],npc:[],gilda:[],fazioni:[],mondo:[],cronologia:[],map_pins:[],map_config:null,bestiario:[],mercato:[]});
+  const [data,setData]=useState({sessioni:[],npc:[],gilda:[],fazioni:[],mondo:[],cronologia:[],map_pins:[],map_config:null,bestiario:[],mercato:[],guild_rules:null});
   const [loading,setLoading]=useState(true);
   const [view,setView]=useState("sessioni");
   const [sidebarOpen,setSidebarOpen]=useState(false);
@@ -2245,6 +2264,10 @@ export default function App(){
   const [pendingPin,setPendingPin]=useState(false);
   const [players,setPlayers]=useState([]);
   const [selectedPlayer,setSelectedPlayer]=useState(null);
+  const [rulesOpen,setRulesOpen]=useState(false);
+  const [rulesEditing,setRulesEditing]=useState(false);
+  const [rulesDraft,setRulesDraft]=useState("");
+  const [rulesSaving,setRulesSaving]=useState(false);
 
   const isAuth = user?.role==="dm";
   const TITLES={sessioni:"Sessioni",npc:"NPC",mappa:"Mappa",gilda:"Gilda",fazioni:"Fazioni",mondo:"Fogli del Mondo",cronologia:"Cronologia",mercato:"Mercato",bestiario:"Bestiario Scoperto"};
@@ -2262,7 +2285,7 @@ export default function App(){
   const loadAll=async()=>{
     setLoading(true);
     try{
-      const [npcs,sessions,factions,locations,timeline,map_pins,map_config,playersRes,bestiary,mercatoRes]=await Promise.all([
+      const [npcs,sessions,factions,locations,timeline,map_pins,map_config,playersRes,bestiary,mercatoRes,guildRulesRes]=await Promise.all([
         supabase.from("npcs").select("*").order("created_at",{ascending:false}),
         supabase.from("sessions").select("*").order("created_at",{ascending:false}),
         supabase.from("factions").select("*").order("created_at",{ascending:false}),
@@ -2273,6 +2296,7 @@ export default function App(){
         supabase.from("player_characters").select("*").order("name"),
         supabase.from("bestiary").select("*").order("name"),
         supabase.from("mercato").select("*").order("name"),
+        supabase.from("guild_rules").select("*").limit(1),
       ]);
       const parsed=(playersRes.data||[]).map(p=>{
         if(typeof p.attacks==="string")try{p.attacks=JSON.parse(p.attacks);}catch(e){p.attacks=[];}
@@ -2290,6 +2314,7 @@ export default function App(){
         npc:npcs.data||[],sessioni:sessions.data||[],gilda:(factions.data||[]).filter(f=>f.tipo==="gilda"||(!f.tipo&&false)),
         fazioni:(factions.data||[]).filter(f=>f.tipo!=="gilda"),mondo:locations.data||[],cronologia:timeline.data||[],map_pins:map_pins.data||[],map_config:map_config.data?.[0]||null,
         bestiario:bestiary.data||[],mercato:mercatoRes.data||[],
+        guild_rules:guildRulesRes.data?.[0]||null,
       }));
     }catch(e){console.error(e);}
     setLoading(false);
@@ -2332,6 +2357,20 @@ export default function App(){
 
   const openGenericAdd=()=>{setGenericVals({});setGenericModal({view,item:null});};
   const openGenericEdit=(v,item)=>{setGenericVals({...item});setGenericModal({view:v,item});};
+
+  const saveGuildRules=async()=>{
+    setRulesSaving(true);
+    try{
+      if(data.guild_rules?.id){
+        await supabase.from("guild_rules").update({text:rulesDraft,updated_at:new Date().toISOString()}).eq("id",data.guild_rules.id);
+      }else{
+        await supabase.from("guild_rules").insert({text:rulesDraft});
+      }
+      setRulesEditing(false);
+      await loadAll();
+    }catch(e){alert("Errore: "+e.message);}
+    setRulesSaving(false);
+  };
   const saveGeneric=async(imgUrl=null,imgField=null)=>{
     if(!genericModal)return;
     setSaving(true);
@@ -2411,6 +2450,11 @@ export default function App(){
             <div style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.gold,textShadow:`0 0 24px ${C.goldGlow}`}}>La Gilda</div>
             <div style={{fontSize:10,fontWeight:600,letterSpacing:".2em",textTransform:"uppercase",color:C.textMuted,marginTop:4}}>Fratellanza & Alleanze</div>
           </div>
+          <div onClick={()=>{setRulesDraft(data.guild_rules?.text||"");setRulesEditing(false);setRulesOpen(true);}} style={{display:"flex",alignItems:"center",gap:10,background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:12,padding:"12px 14px",marginBottom:16,cursor:"pointer"}}>
+            <span style={{fontSize:18}}>📜</span>
+            <span style={{fontFamily:"'Cinzel',serif",fontSize:13,fontWeight:600,color:C.gold,flex:1}}>Regole di Gilda</span>
+            <span style={{fontSize:12,color:C.textMuted}}>Come funziona la fama ›</span>
+          </div>
           {!data.gilda.length?<EmptyState msg="Nessun gruppo nella gilda ancora"/>:
             gradiDM.map(grado=>{
               const gruppi=sortedGilda.filter(g=>g.grado===grado);
@@ -2439,6 +2483,26 @@ export default function App(){
               </div>;
             })
           }
+          {rulesOpen&&<div onClick={()=>setRulesOpen(false)} style={{position:"fixed",inset:0,zIndex:300,background:"rgba(0,0,0,.85)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:16,maxWidth:560,width:"100%",maxHeight:"80vh",overflowY:"auto",padding:24,boxShadow:`0 0 40px ${C.goldGlow}`}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+                <span style={{fontFamily:"'Cinzel',serif",fontSize:18,fontWeight:700,color:C.gold}}>📜 Regole di Gilda</span>
+                <button onClick={()=>setRulesOpen(false)} style={{background:"none",border:"none",fontSize:22,color:C.textDim,cursor:"pointer"}}>✕</button>
+              </div>
+              {rulesEditing?<>
+                <textarea value={rulesDraft} onChange={e=>setRulesDraft(e.target.value)} rows={14} placeholder="Scrivi qui le regole di gilda, come funziona la fama, ecc..." style={{width:"100%",background:C.bg,border:`1px solid ${C.border2}`,borderRadius:10,color:C.text,fontFamily:"inherit",fontSize:14,padding:12,outline:"none",boxSizing:"border-box",lineHeight:1.6,resize:"vertical"}}/>
+                <div style={{display:"flex",gap:8,marginTop:12}}>
+                  <Btn onClick={()=>{setRulesEditing(false);setRulesDraft(data.guild_rules?.text||"");}} style={{flex:1}}>Annulla</Btn>
+                  <Btn primary onClick={saveGuildRules} disabled={rulesSaving} style={{flex:1}}>{rulesSaving?"Salvataggio...":"Salva"}</Btn>
+                </div>
+              </>:<>
+                {data.guild_rules?.text
+                  ?<LongText text={data.guild_rules.text}/>
+                  :<div style={{color:C.textMuted,fontSize:13,fontStyle:"italic",marginBottom:12}}>Nessuna regola scritta ancora.</div>}
+                <Btn primary onClick={()=>setRulesEditing(true)} style={{marginTop:12,width:"100%"}}>✏ {data.guild_rules?.text?"Modifica":"Scrivi"} regole</Btn>
+              </>}
+            </div>
+          </div>}
         </div>;
       }
       case "fazioni":return !data.fazioni.length?<EmptyState msg="Nessuna fazione ancora"/>:
