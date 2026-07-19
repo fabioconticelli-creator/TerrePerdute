@@ -61,6 +61,31 @@ const LongText = ({text,style={}}) => !text?null:<>
     :<div key={i} style={{fontSize:15,color:C.text,lineHeight:1.75,marginBottom:8,...style}}>{b.text}</div>
   )}
 </>;
+const RulesText = ({text}) => {
+  if(!text) return null;
+  const blocks=[];
+  let bulletBuf=[];
+  const flushBullets=()=>{ if(bulletBuf.length){blocks.push({type:"ul",items:bulletBuf});bulletBuf=[];} };
+  text.split("\n").forEach(raw=>{
+    const line=raw.trim();
+    if(!line){flushBullets();return;}
+    if(line.startsWith("*")||line.startsWith("-")){
+      bulletBuf.push(line.replace(/^[-*]\s*/,""));
+    }else{
+      flushBullets();
+      const isHeader=line.length<70&&!/[.!?%]$/.test(line);
+      blocks.push({type:isHeader?"h":"p",text:line});
+    }
+  });
+  flushBullets();
+  return <>
+    {blocks.map((b,i)=>{
+      if(b.type==="h")return <div key={i} style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:700,color:C.gold,marginTop:i===0?0:18,marginBottom:6}}>{b.text}</div>;
+      if(b.type==="ul")return <ul key={i} style={{margin:"4px 0 12px",paddingLeft:20,color:C.text,fontSize:14,lineHeight:1.7}}>{b.items.map((it,j)=><li key={j} style={{marginBottom:3}}>{it}</li>)}</ul>;
+      return <div key={i} style={{fontSize:14,color:C.text,lineHeight:1.7,marginBottom:8}}>{b.text}</div>;
+    })}
+  </>;
+};
 const tagColor = t => ({
   Alleato:{border:"#1a4a2e",color:"#4ade80"},
   Neutrale:{border:"#4a3800",color:"#fbbf24"},
@@ -461,7 +486,7 @@ function PlayerView({user, onLogout}){
                 <button onClick={()=>setRulesOpen(false)} style={{background:"none",border:"none",fontSize:22,color:C.textDim,cursor:"pointer"}}>✕</button>
               </div>
               {campData.guild_rules?.text
-                ?<LongText text={campData.guild_rules.text}/>
+                ?<RulesText text={campData.guild_rules.text}/>
                 :<div style={{color:C.textMuted,fontSize:13,fontStyle:"italic"}}>Il DM non ha ancora scritto le regole di gilda.</div>}
             </div>
           </div>}
@@ -2497,7 +2522,7 @@ export default function App(){
                 </div>
               </>:<>
                 {data.guild_rules?.text
-                  ?<LongText text={data.guild_rules.text}/>
+                  ?<RulesText text={data.guild_rules.text}/>
                   :<div style={{color:C.textMuted,fontSize:13,fontStyle:"italic",marginBottom:12}}>Nessuna regola scritta ancora.</div>}
                 <Btn primary onClick={()=>setRulesEditing(true)} style={{marginTop:12,width:"100%"}}>✏ {data.guild_rules?.text?"Modifica":"Scrivi"} regole</Btn>
               </>}
