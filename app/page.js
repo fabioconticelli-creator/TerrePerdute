@@ -400,7 +400,6 @@ function PlayerView({user, onLogout}){
   const lbl={display:"block",fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim,marginBottom:2};
 
   const navItems=[
-    {v:"scheda",icon:"🛡️",label:"La mia Scheda"},
     {v:"sessioni",icon:"📜",label:"Sessioni"},
     {v:"gilda",icon:"🏴",label:"Gilda"},
     {v:"npc",icon:"👤",label:"NPC"},
@@ -757,10 +756,12 @@ function PlayerView({user, onLogout}){
           <div style={{padding:"14px 0 6px"}}>
             <div style={{fontSize:10,fontWeight:600,letterSpacing:".18em",textTransform:"uppercase",color:C.textMuted,padding:"0 18px 6px"}}>La Compagnia</div>
             {allPlayers.map((p,i)=>{
-              const vkey=`compagno_${p.id}`;
-              return <div key={i} onClick={()=>{setSelectedCompagno(p);setView(vkey);setSidebarOpen(false);load();}} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 18px",cursor:"pointer",background:view===vkey?`rgba(212,160,23,.08)`:"transparent",borderLeft:`2px solid ${view===vkey?C.gold:"transparent"}`}}>
+              const isSelf=p.player_id===user.userId;
+              const vkey=isSelf?"scheda":`compagno_${p.id}`;
+              const active=isSelf?view==="scheda":view===vkey;
+              return <div key={i} onClick={()=>{if(!isSelf){setSelectedCompagno(p);}setView(vkey);setSidebarOpen(false);load();}} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 18px",cursor:"pointer",background:active?`rgba(212,160,23,.08)`:"transparent",borderLeft:`2px solid ${active?C.gold:"transparent"}`}}>
                 <span style={{fontSize:14,flexShrink:0}}>{partyIcon(p.name)}</span>
-                <div style={{fontSize:13,color:view===vkey?C.gold:C.textDim,fontWeight:view===vkey?500:400}}>{p.name}</div>
+                <div style={{fontSize:13,color:active?C.gold:C.textDim,fontWeight:active?500:400}}>{p.name}{isSelf?" (tu)":""}</div>
                 <div style={{marginLeft:"auto",fontSize:10,color:C.textMuted}}>{p.hp}/{p.max_hp}</div>
               </div>;
             })}
