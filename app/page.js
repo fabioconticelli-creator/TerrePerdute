@@ -35,6 +35,32 @@ const partyIcon = name => {
   if(n.includes("lobdlin")||n.includes("lobdi"))return "🕊️";
   return "⚔️";
 };
+const formatLongText = text => {
+  if(!text) return [];
+  const re=/((?:\p{Emoji_Presentation}|\p{Extended_Pictographic})\s*)?([A-ZÀÁÂÃÄÅÈÉÊËÌÍÎÏÒÓÔÕÖÙÚÛÜ]{4,}(?:\s[A-ZÀÁÂÃÄÅÈÉÊËÌÍÎÏÒÓÔÕÖÙÚÛÜ]{4,})*)\s*/gu;
+  const matches=[...text.matchAll(re)];
+  if(matches.length===0)return [{type:"p",text}];
+  const blocks=[];
+  const intro=text.slice(0,matches[0].index).trim();
+  if(intro)blocks.push({type:"p",text:intro});
+  for(let i=0;i<matches.length;i++){
+    const m=matches[i];
+    const header=m[2];
+    const emoji=(m[1]||"").trim();
+    const start=m.index+m[0].length;
+    const end=i+1<matches.length?matches[i+1].index:text.length;
+    const body=text.slice(start,end).trim();
+    blocks.push({type:"h",header,emoji});
+    if(body)blocks.push({type:"p",text:body});
+  }
+  return blocks;
+};
+const LongText = ({text,style={}}) => !text?null:<>
+  {formatLongText(text).map((b,i)=>b.type==="h"
+    ?<div key={i} style={{fontSize:11,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.gold,marginTop:i===0?0:16,marginBottom:6}}>{b.emoji?b.emoji+" ":""}{b.header}</div>
+    :<div key={i} style={{fontSize:15,color:C.text,lineHeight:1.75,marginBottom:8,...style}}>{b.text}</div>
+  )}
+</>;
 const tagColor = t => ({
   Alleato:{border:"#1a4a2e",color:"#4ade80"},
   Neutrale:{border:"#4a3800",color:"#fbbf24"},
@@ -178,7 +204,7 @@ function NpcPanel({npc,onClose}){
         {npc.role&&<div style={{fontSize:13,color:C.textDim,marginBottom:6,fontStyle:"italic"}}>{npc.role}</div>}
         {npc.sede&&<div style={{fontSize:13,marginBottom:6}}>📍 <span style={{color:C.gold}}>{npc.sede}</span></div>}
         {npc.primo_incontro&&<div style={{fontSize:13,marginBottom:14}}><strong>Primo incontro:</strong> <span style={{color:C.gold}}>{npc.primo_incontro}</span></div>}
-        {npc.description&&<div style={{fontSize:15,color:C.text,lineHeight:1.75}}>{npc.description}</div>}
+        {npc.description&&<LongText text={npc.description}/>}
         {npc.influence!=null&&npc.grado&&<div style={{marginTop:14}}>
           <div style={{height:4,background:"#101827",borderRadius:2,overflow:"hidden",marginBottom:4}}><div style={{height:"100%",width:`${npc.influence||0}%`,background:"linear-gradient(90deg,#7a5c00,#d4a017)"}}/></div>
           <div style={{fontSize:11,color:"#8a8070"}}>Fama: {npc.influence||0}%</div>
@@ -1792,7 +1818,7 @@ function BestiaryView({isAuth, data, onUpdate}){
             {detailOpen.challenge_rating&&<span style={{fontSize:11,fontWeight:700,padding:"3px 10px",border:`1px solid ${crColor(detailOpen.challenge_rating)}`,borderRadius:6,color:crColor(detailOpen.challenge_rating)}}>GS {detailOpen.challenge_rating}</span>}
             {detailOpen.hp&&<span style={{fontSize:11,fontWeight:600,padding:"3px 10px",border:`1px solid #f87171`,borderRadius:6,color:"#f87171"}}>❤️ {detailOpen.hp} PF</span>}
           </div>
-          {detailOpen.description&&<div style={{fontSize:15,color:C.text,lineHeight:1.75,marginBottom:12}}>{detailOpen.description}</div>}
+          {detailOpen.description&&<LongText text={detailOpen.description}/>}
           {detailOpen.attacks&&<div style={{marginTop:8}}>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:6}}>Attacchi</div>
             <div style={{fontSize:14,color:C.textDim,lineHeight:1.65}}>{detailOpen.attacks}</div>
@@ -1955,7 +1981,7 @@ function PlayerBestiaryView({data, userId, onUpdate}){
             {detailOpen.challenge_rating&&<span style={{fontSize:11,fontWeight:700,padding:"3px 10px",border:`1px solid ${crColor(detailOpen.challenge_rating)}`,borderRadius:6,color:crColor(detailOpen.challenge_rating)}}>GS {detailOpen.challenge_rating}</span>}
             {detailOpen.hp&&<span style={{fontSize:11,fontWeight:600,padding:"3px 10px",border:"1px solid #f87171",borderRadius:6,color:"#f87171"}}>❤️ {detailOpen.hp} PF</span>}
           </div>
-          {detailOpen.description&&<div style={{fontSize:15,color:C.text,lineHeight:1.75,marginBottom:12}}>{detailOpen.description}</div>}
+          {detailOpen.description&&<LongText text={detailOpen.description}/>}
           {detailOpen.attacks&&<div style={{marginTop:8}}>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".2em",textTransform:"uppercase",color:C.gold,marginBottom:6}}>Attacchi</div>
             <div style={{fontSize:14,color:C.textDim,lineHeight:1.65}}>{detailOpen.attacks}</div>
