@@ -392,21 +392,33 @@ function PlayerView({user, onLogout}){
             </div>
           ))}
         </div>;
-      case "npc": return !campData.npc.length?<EmptyState msg="Nessun NPC ancora"/>:
-        <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          {campData.npc.map((n,i)=>(
-            <div key={n.id||i} style={{display:"flex",alignItems:"center",gap:12,background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",cursor:"pointer"}} onClick={()=>setNpcOpen(n)}>
-              <div style={{width:48,height:48,borderRadius:10,background:C.bg3,border:`1px solid ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0,overflow:"hidden"}}>
-                {n.img_url?<img src={n.img_url} alt={n.name} style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center top"}}/>:(n.icon||"👤")}
-              </div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{n.name}</div>
-                <div style={{fontSize:12,color:C.textDim,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.role}</div>
-                <div style={{display:"flex",gap:5,marginTop:5,flexWrap:"wrap"}}>{n.attitude&&<Tag t={n.attitude}/>}{n.stato&&<Tag t={n.stato}/>}</div>
-              </div>
+      case "npc": {
+        if(!campData.npc.length) return <EmptyState msg="Nessun NPC ancora"/>;
+        const crew = campData.npc.filter(n=>n.is_crew);
+        const others = campData.npc.filter(n=>!n.is_crew);
+        const npcCard = n => (
+          <div key={n.id} style={{display:"flex",alignItems:"center",gap:12,background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",cursor:"pointer"}} onClick={()=>setNpcOpen(n)}>
+            <div style={{width:48,height:48,borderRadius:10,background:C.bg3,border:`1px solid ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0,overflow:"hidden"}}>
+              {n.img_url?<img src={n.img_url} alt={n.name} style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center top"}}/>:(n.icon||"👤")}
             </div>
-          ))}
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{n.name}</div>
+              <div style={{fontSize:12,color:C.textDim,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.role}</div>
+              <div style={{display:"flex",gap:5,marginTop:5,flexWrap:"wrap"}}>{n.attitude&&<Tag t={n.attitude}/>}{n.stato&&<Tag t={n.stato}/>}</div>
+            </div>
+          </div>
+        );
+        return <div>
+          {crew.length>0&&<div style={{marginBottom:20}}>
+            <div style={{fontSize:11,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.gold,marginBottom:10}}>⚓ Ciurma</div>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>{crew.map(npcCard)}</div>
+          </div>}
+          {others.length>0&&<div>
+            {crew.length>0&&<div style={{fontSize:11,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textMuted,marginBottom:10}}>NPC</div>}
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>{others.map(npcCard)}</div>
+          </div>}
         </div>;
+      }
       case "gilda":{
         const gradoOrdP={"Adamantio":5,"Platino":4,"Oro":3,"Argento":2,"Ferro":1};
         const gradoColorP={"Ferro":"#a0522d","Argento":"#c0c0c0","Oro":C.gold,"Platino":"#e5e4e2","Adamantio":"#b9f2ff"};
@@ -1395,7 +1407,7 @@ function PinModal({onSuccess,onClose}){
 }
 
 function NpcFormModal({npc,onClose,onSaved}){
-  const [vals,setVals]=useState(npc||{name:"",role:"",icon:"👤",description:"",primo_incontro:"",attitude:"Neutrale",stato:"vivo",img_url:""});
+  const [vals,setVals]=useState(npc||{name:"",role:"",icon:"👤",description:"",primo_incontro:"",attitude:"Neutrale",stato:"vivo",img_url:"",is_crew:false});
   const [imgFile,setImgFile]=useState(null);
   const [imgPreview,setImgPreview]=useState(npc?.img_url||"");
   const [saving,setSaving]=useState(false);
@@ -1443,6 +1455,10 @@ function NpcFormModal({npc,onClose,onSaved}){
         <input value={vals[f.id]||""} onChange={e=>setVals(v=>({...v,[f.id]:e.target.value}))} placeholder={f.ph} style={inp}/>
       </div>
     ))}
+    <label style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,cursor:"pointer",fontSize:13,color:C.textDim}}>
+      <input type="checkbox" checked={!!vals.is_crew} onChange={e=>setVals(v=>({...v,is_crew:e.target.checked}))}/>
+      ⚓ Fa parte della Ciurma
+    </label>
     <div style={{marginBottom:13}}>
       <label style={lbl}>Descrizione</label>
       <textarea value={vals.description||""} onChange={e=>setVals(v=>({...v,description:e.target.value}))} placeholder="Chi è?" style={{...inp,minHeight:80,resize:"vertical"}}/>
@@ -3016,25 +3032,37 @@ export default function App(){
           ))}
         </div>;
 
-      case "npc":return !data.npc.length?<EmptyState msg="Nessun NPC ancora"/>:
-        <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          {data.npc.map((n,i)=>(
-            <div key={n.id||i} style={{display:"flex",alignItems:"center",gap:12,background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",cursor:"pointer"}} onClick={()=>setNpcOpen(n)}>
-              <div style={{width:48,height:48,borderRadius:10,background:C.bg3,border:`1px solid ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0,overflow:"hidden"}}>
-                {n.img_url?<img src={n.img_url} alt={n.name} style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center top"}}/>:(n.icon||"👤")}
-              </div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{n.name}</div>
-                <div style={{fontSize:12,color:C.textDim,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.role}</div>
-                <div style={{display:"flex",gap:5,marginTop:5,flexWrap:"wrap"}}>{n.attitude&&<Tag t={n.attitude}/>}{n.stato&&<Tag t={n.stato}/>}</div>
-              </div>
-              {isAuth&&<div onClick={e=>{e.stopPropagation();}} style={{display:"flex",flexDirection:"column",gap:4}}>
-                <Btn onClick={()=>openNpcEdit(n)}>✏</Btn>
-                <Btn onClick={()=>deleteNpc(n.id)}>✕</Btn>
-              </div>}
+      case "npc": {
+        if(!data.npc.length) return <EmptyState msg="Nessun NPC ancora"/>;
+        const crewDm = data.npc.filter(n=>n.is_crew);
+        const othersDm = data.npc.filter(n=>!n.is_crew);
+        const npcCardDm = n => (
+          <div key={n.id} style={{display:"flex",alignItems:"center",gap:12,background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",cursor:"pointer"}} onClick={()=>setNpcOpen(n)}>
+            <div style={{width:48,height:48,borderRadius:10,background:C.bg3,border:`1px solid ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0,overflow:"hidden"}}>
+              {n.img_url?<img src={n.img_url} alt={n.name} style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center top"}}/>:(n.icon||"👤")}
             </div>
-          ))}
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{n.name}</div>
+              <div style={{fontSize:12,color:C.textDim,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.role}</div>
+              <div style={{display:"flex",gap:5,marginTop:5,flexWrap:"wrap"}}>{n.attitude&&<Tag t={n.attitude}/>}{n.stato&&<Tag t={n.stato}/>}</div>
+            </div>
+            {isAuth&&<div onClick={e=>{e.stopPropagation();}} style={{display:"flex",flexDirection:"column",gap:4}}>
+              <Btn onClick={()=>openNpcEdit(n)}>✏</Btn>
+              <Btn onClick={()=>deleteNpc(n.id)}>✕</Btn>
+            </div>}
+          </div>
+        );
+        return <div>
+          {crewDm.length>0&&<div style={{marginBottom:20}}>
+            <div style={{fontSize:11,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.gold,marginBottom:10}}>⚓ Ciurma</div>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>{crewDm.map(npcCardDm)}</div>
+          </div>}
+          {othersDm.length>0&&<div>
+            {crewDm.length>0&&<div style={{fontSize:11,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:C.textMuted,marginBottom:10}}>NPC</div>}
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>{othersDm.map(npcCardDm)}</div>
+          </div>}
         </div>;
+      }
 
       case "gilda":{
         const gradoOrd={"Adamantio":5,"Platino":4,"Oro":3,"Argento":2,"Ferro":1};
