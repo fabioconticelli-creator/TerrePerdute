@@ -394,8 +394,9 @@ function PlayerView({user, onLogout}){
         </div>;
       case "npc": {
         if(!campData.npc.length) return <EmptyState msg="Nessun NPC ancora"/>;
-        const crew = campData.npc.filter(n=>n.is_crew);
-        const others = campData.npc.filter(n=>!n.is_crew);
+        const alphaSort=(a,b)=>a.name.localeCompare(b.name,"it",{sensitivity:"base"});
+        const crew = campData.npc.filter(n=>n.is_crew).sort(alphaSort);
+        const others = campData.npc.filter(n=>!n.is_crew).sort(alphaSort);
         const npcCard = n => (
           <div key={n.id} style={{display:"flex",alignItems:"center",gap:12,background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",cursor:"pointer"}} onClick={()=>setNpcOpen(n)}>
             <div style={{width:48,height:48,borderRadius:10,background:C.bg3,border:`1px solid ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0,overflow:"hidden"}}>
@@ -3034,8 +3035,9 @@ export default function App(){
 
       case "npc": {
         if(!data.npc.length) return <EmptyState msg="Nessun NPC ancora"/>;
-        const crewDm = data.npc.filter(n=>n.is_crew);
-        const othersDm = data.npc.filter(n=>!n.is_crew);
+        const alphaSortDm=(a,b)=>a.name.localeCompare(b.name,"it",{sensitivity:"base"});
+        const crewDm = data.npc.filter(n=>n.is_crew).sort(alphaSortDm);
+        const othersDm = data.npc.filter(n=>!n.is_crew).sort(alphaSortDm);
         const npcCardDm = n => (
           <div key={n.id} style={{display:"flex",alignItems:"center",gap:12,background:C.bg2,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",cursor:"pointer"}} onClick={()=>setNpcOpen(n)}>
             <div style={{width:48,height:48,borderRadius:10,background:C.bg3,border:`1px solid ${C.border2}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0,overflow:"hidden"}}>
