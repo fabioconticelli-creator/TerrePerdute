@@ -422,24 +422,36 @@ function PlayerView({user, onLogout}){
       }
       case "gilda":{
         const gradoColorP={"Ferro":"#a0522d","Argento":"#c0c0c0","Oro":C.gold,"Platino":"#e5e4e2","Adamantio":"#b9f2ff"};
+        const gradiP=["Adamantio","Platino","Oro","Argento","Ferro"];
         const sortedGP=[...campData.gilda].sort((a,b)=>(b.influence||0)-(a.influence||0));
         return <div>
           {campData.guildRulesText&&<div style={{textAlign:"right",marginBottom:12}}>
             <Btn onClick={()=>setGuildRulesOpen(true)}>📜 Regole della Gilda</Btn>
           </div>}
-          {!campData.gilda.length?<EmptyState msg="Nessuna gilda ancora"/>:
-          sortedGP.map((g,i)=>(
-            <div key={g.id||i} onClick={()=>setNpcOpen(g)} style={{display:"flex",alignItems:"center",gap:12,background:C.bg2,border:`1px solid ${C.border}`,borderLeft:`3px solid ${gradoColorP[g.grado]||C.gold}`,borderRadius:12,padding:"12px 14px",marginBottom:8,cursor:"pointer"}}>
-              <div style={{width:48,height:48,borderRadius:10,background:C.bg3,border:`1px solid ${C.border2}`,flexShrink:0,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>
-                {g.img_url?<img src={g.img_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:"🏴"}
+          {!campData.gilda.length?<EmptyState msg="Nessuna gilda ancora"/>:<>
+          {gradiP.map(grado=>{
+            const gruppi=sortedGP.filter(g=>g.grado===grado);
+            if(!gruppi.length)return null;
+            return <div key={grado} style={{marginBottom:16}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,padding:"0 2px"}}>
+                <div style={{fontSize:11,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:gradoColorP[grado]}}>{grado}</div>
+                <div style={{flex:1,height:1,background:gradoColorP[grado],opacity:.3}}/>
               </div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{g.name}</div>
-                {g.sede&&<div style={{fontSize:11,color:C.textDim,marginTop:2}}>📍 {g.sede}</div>}
-              </div>
-              {g.influence!=null&&<div style={{fontSize:12,fontWeight:600,color:gradoColorP[g.grado]||C.gold}}>{g.influence}%</div>}
-            </div>
-          ))}
+              {gruppi.map((g,i)=>(
+                <div key={g.id||i} onClick={()=>setNpcOpen(g)} style={{display:"flex",alignItems:"center",gap:12,background:C.bg2,border:`1px solid ${C.border}`,borderLeft:`3px solid ${gradoColorP[g.grado]||C.gold}`,borderRadius:12,padding:"12px 14px",marginBottom:8,cursor:"pointer"}}>
+                  <div style={{width:48,height:48,borderRadius:10,background:C.bg3,border:`1px solid ${C.border2}`,flexShrink:0,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>
+                    {g.img_url?<img src={g.img_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:"🏴"}
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{g.name}</div>
+                    {g.sede&&<div style={{fontSize:11,color:C.textDim,marginTop:2}}>📍 {g.sede}</div>}
+                  </div>
+                  {g.influence!=null&&<div style={{fontSize:12,fontWeight:600,color:gradoColorP[g.grado]||C.gold}}>{g.influence}%</div>}
+                </div>
+              ))}
+            </div>;
+          })}
+          </>}
           {guildRulesOpen&&<div onClick={()=>setGuildRulesOpen(false)} style={{position:"fixed",inset:0,zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20,background:"rgba(0,0,0,.8)",backdropFilter:"blur(4px)"}}>
             <div onClick={e=>e.stopPropagation()} style={{position:"relative",background:C.bg2,borderRadius:20,border:`1px solid ${C.border2}`,width:"100%",maxWidth:640,maxHeight:"85vh",overflowY:"auto",boxShadow:`0 0 60px ${C.goldGlow}`}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 20px 12px"}}>
@@ -3055,6 +3067,7 @@ export default function App(){
 
       case "gilda":{
         const gradoColor={"Ferro":"#a0522d","Argento":"#c0c0c0","Oro":C.gold,"Platino":"#e5e4e2","Adamantio":"#b9f2ff"};
+        const gradiDM=["Adamantio","Platino","Oro","Argento","Ferro"];
         const sortedGilda=[...data.gilda].sort((a,b)=>(b.influence||0)-(a.influence||0));
         return <div>
           <div style={{textAlign:"center",padding:"16px 0 20px"}}>
@@ -3065,22 +3078,32 @@ export default function App(){
             <Btn onClick={()=>{setGuildRulesDraft(data.guildRulesText||"");setGuildRulesEdit(false);setGuildRulesOpen(true);}}>📜 Regole della Gilda</Btn>
           </div>
           {!data.gilda.length?<EmptyState msg="Nessun gruppo nella gilda ancora"/>:
-            sortedGilda.map((g,i)=>(
-              <div key={g.id||i} onClick={()=>setNpcOpen(g)} style={{display:"flex",alignItems:"center",gap:12,background:C.bg2,border:`1px solid ${C.border}`,borderLeft:`3px solid ${gradoColor[g.grado]||C.gold}`,borderRadius:12,padding:"12px 14px",marginBottom:8,cursor:"pointer"}}>
-                <div style={{width:48,height:48,borderRadius:10,background:C.bg3,border:`1px solid ${C.border2}`,flexShrink:0,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>
-                  {g.img_url?<img src={g.img_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:"🏴"}
+            gradiDM.map(grado=>{
+              const gruppi=sortedGilda.filter(g=>g.grado===grado);
+              if(!gruppi.length)return null;
+              return <div key={grado} style={{marginBottom:16}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                  <div style={{fontSize:11,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase",color:gradoColor[grado]}}>{grado}</div>
+                  <div style={{flex:1,height:1,background:gradoColor[grado],opacity:.3}}/>
                 </div>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{g.name}</div>
-                  {g.sede&&<div style={{fontSize:11,color:C.textDim,marginTop:2}}>📍 {g.sede}</div>}
-                </div>
-                {g.influence!=null&&<div style={{fontSize:12,fontWeight:600,color:gradoColor[g.grado]||C.gold,marginRight:8}}>{g.influence}%</div>}
-                {isAuth&&<div onClick={e=>{e.stopPropagation();}} style={{display:"flex",flexDirection:"column",gap:4}}>
-                  <Btn onClick={()=>openGenericEdit("gilda",g)}>✏</Btn>
-                  <Btn onClick={()=>deleteGeneric("gilda",g.id)}>✕</Btn>
-                </div>}
-              </div>
-            ))
+                {gruppi.map((g,i)=>(
+                  <div key={g.id||i} onClick={()=>setNpcOpen(g)} style={{display:"flex",alignItems:"center",gap:12,background:C.bg2,border:`1px solid ${C.border}`,borderLeft:`3px solid ${gradoColor[g.grado]||C.gold}`,borderRadius:12,padding:"12px 14px",marginBottom:8,cursor:"pointer"}}>
+                    <div style={{width:48,height:48,borderRadius:10,background:C.bg3,border:`1px solid ${C.border2}`,flexShrink:0,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>
+                      {g.img_url?<img src={g.img_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:"🏴"}
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontFamily:"'Cinzel',serif",fontSize:14,fontWeight:600,color:C.text}}>{g.name}</div>
+                      {g.sede&&<div style={{fontSize:11,color:C.textDim,marginTop:2}}>📍 {g.sede}</div>}
+                    </div>
+                    {g.influence!=null&&<div style={{fontSize:12,fontWeight:600,color:gradoColor[g.grado]||C.gold,marginRight:8}}>{g.influence}%</div>}
+                    {isAuth&&<div onClick={e=>{e.stopPropagation();}} style={{display:"flex",flexDirection:"column",gap:4}}>
+                      <Btn onClick={()=>openGenericEdit("gilda",g)}>✏</Btn>
+                      <Btn onClick={()=>deleteGeneric("gilda",g.id)}>✕</Btn>
+                    </div>}
+                  </div>
+                ))}
+              </div>;
+            })
           }
           {guildRulesOpen&&<div onClick={()=>setGuildRulesOpen(false)} style={{position:"fixed",inset:0,zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20,background:"rgba(0,0,0,.8)",backdropFilter:"blur(4px)"}}>
             <div onClick={e=>e.stopPropagation()} style={{position:"relative",background:C.bg2,borderRadius:20,border:`1px solid ${C.border2}`,width:"100%",maxWidth:640,maxHeight:"85vh",overflowY:"auto",boxShadow:`0 0 60px ${C.goldGlow}`}}>
